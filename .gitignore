@@ -1,0 +1,27 @@
+# Secrets & données personnelles — NE JAMAIS committer
+.env
+userdata/
+.cache/
+
+# Sorties générées
+dashboard_*.html
+rapport_*.md
+first_contact_*.md
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.mypy_cache/
+.pytest_cache/
+
+# OS / éditeurs
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Config locale de l'outil
+.claude/
