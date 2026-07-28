@@ -279,9 +279,10 @@ _CSS = """
 :root{--ink:#F2F0EA;--red:#FF4655;--cyan:#22D3EE;--mint:#37E0A6;--violet:#8B5CFF;
  --muted:#98a2b3;--glass:rgba(255,255,255,.06);--brd:rgba(255,255,255,.12);--bg:#07060f;}
 *{box-sizing:border-box;margin:0;padding:0}
-html,body{background:var(--bg);color:var(--ink);min-height:100%;
+html{background:var(--bg)}
+html,body{color:var(--ink);min-height:100%;
  font-family:-apple-system,"SF Pro Display",Inter,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
-body{position:relative;overflow-x:hidden}
+body{position:relative;overflow-x:hidden;background:transparent}
 .aurora{position:fixed;inset:-25%;z-index:-3;filter:blur(80px) saturate(150%);opacity:.6}
 .aurora span{position:absolute;border-radius:50%;mix-blend-mode:screen;animation:drift 20s ease-in-out infinite}
 .b1{width:55vw;height:55vw;background:#ff2d6b;top:-8%;left:-6%}
@@ -314,7 +315,7 @@ body{position:relative;overflow-x:hidden}
 .btn-ghost{border:1px solid var(--brd);background:var(--glass);color:var(--ink)}
 .mini{font-size:11px;margin-top:14px}
 
-.wrap{max-width:1200px;margin:0 auto;padding:30px 22px 64px}
+.wrap{max-width:1200px;margin:0 auto;padding:30px 22px 64px;position:relative;z-index:1}
 .glass{background:var(--glass);backdrop-filter:blur(26px) saturate(160%);
  -webkit-backdrop-filter:blur(26px) saturate(160%);border:1px solid var(--brd);border-radius:20px;
  box-shadow:0 14px 46px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.14)}
