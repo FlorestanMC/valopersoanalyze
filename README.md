@@ -6,6 +6,11 @@ Premier), calcule des stats avancées (K/D, ACS, **KAST**, round win/loss,
 web au thème « Aurora Tactical », avec un **fond personnalisable** et une **analyse
 coaching** générée par l'API Claude.
 
+![Aperçu du dashboard](docs/preview.svg)
+
+<sub>Aperçu illustratif (généré à partir de stats réelles). Dans l'app, les
+portraits d'agents et icônes d'armes se chargent en direct.</sub>
+
 > ⚠️ Projet **personnel / éducatif**. Les données viennent de l'API tierce non
 > officielle **HenrikDev** (non affiliée à Riot Games). Les visuels d'agents et
 > d'armes appartiennent à © Riot Games (servis par valorant-api.com). Ce projet
