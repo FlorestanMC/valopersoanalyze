@@ -22,7 +22,7 @@ except ImportError:
     sys.exit("Flask manquant. Installe-le : pip install flask  (ou pip install -r requirements.txt)")
 
 from valo_stats.config import load_config
-from valo_stats.riot import HenrikClient
+from valo_stats.riot import HenrikClient, RiotError
 from valo_stats import pipeline, dashboard, settings
 
 PORT = 8770
@@ -137,6 +137,53 @@ def refresh():
     return jsonify(fetched=summary.get("fetched", 0),
                    missing=summary.get("missing", 0),
                    total=summary.get("total", 0))
+
+
+@app.get("/api/team")
+def team_get():
+    return jsonify(team=settings.load().get("team", []))
+
+
+@app.post("/api/team/config")
+def team_config():
+    data = request.get_json(silent=True) or {}
+    clean = []
+    for p in (data.get("players") or []):
+        rid = (p.get("riot_id") or "").strip()
+        reg = (p.get("region") or "eu").strip().lower()
+        if not rid:
+            continue
+        if "#" not in rid:
+            return jsonify(error=f"Format attendu Pseudo#TAG : {rid}"), 400
+        if reg not in REGIONS:
+            return jsonify(error=f"Région invalide : {reg}"), 400
+        clean.append({"riot_id": rid, "region": reg})
+    settings.set_team(clean)
+    return jsonify(ok=True, team=clean)
+
+
+@app.post("/api/team/refresh")
+def team_refresh():
+    """Met à jour un joueur (par emplacement). ?slot=N &fetch=0 pour le cache seul."""
+    team = settings.load().get("team", [])
+    try:
+        idx = int(request.args.get("slot", ""))
+    except ValueError:
+        return jsonify(error="slot invalide"), 400
+    if idx < 0 or idx >= len(team):
+        return jsonify(error="slot hors limites"), 404
+
+    p = team[idx]
+    game_name, tag_line = p["riot_id"].split("#", 1)
+    cfg = load_config()
+    client = HenrikClient(cfg.henrik_api_key, p["region"])
+    allow_fetch = request.args.get("fetch", "1") != "0"
+    try:
+        summary = pipeline.player_summary(client, game_name, tag_line, _queue(),
+                                          count=15, allow_fetch=allow_fetch)
+    except RiotError as e:
+        return jsonify(riot_id=p["riot_id"], region=p["region"], error=str(e)), 200
+    return jsonify(riot_id=p["riot_id"], region=p["region"], summary=summary)
 
 
 @app.post("/api/target")

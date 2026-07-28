@@ -11,7 +11,7 @@ _ROOT = os.path.dirname(os.path.dirname(__file__))
 USERDATA = os.path.join(_ROOT, "userdata")
 _FILE = os.path.join(USERDATA, "settings.json")
 
-DEFAULTS = {"dim": 55, "bg_file": None, "riot_id": None, "region": None}
+DEFAULTS = {"dim": 55, "bg_file": None, "riot_id": None, "region": None, "team": []}
 ALLOWED_EXT = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
 
 
@@ -46,6 +46,17 @@ def set_target(riot_id, region=None) -> dict:
 
 def clear_target() -> dict:
     return save({"riot_id": None, "region": None})
+
+
+def set_team(players) -> dict:
+    """Enregistre l'effectif suivi (max 5). players : liste de {riot_id, region}."""
+    clean = []
+    for p in (players or [])[:5]:
+        rid = (p.get("riot_id") or "").strip()
+        reg = (p.get("region") or "eu").strip().lower()
+        if "#" in rid:
+            clean.append({"riot_id": rid, "region": reg})
+    return save({"team": clean})
 
 
 def _remove_existing():

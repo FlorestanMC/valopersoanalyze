@@ -8,7 +8,7 @@ import time
 from datetime import datetime
 
 from .aggregate import aggregate
-from . import first_contact, advanced, coach
+from . import first_contact, advanced, coach, ranks
 
 CACHE_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cache", "matches")
 
@@ -53,8 +53,9 @@ def _player_meta(matches, puuid):
     for m in matches:  # matches[0] = plus récent
         for p in m.get("players", {}).get("all_players", []):
             if p.get("puuid") == puuid:
-                return {"rank": p.get("currenttier_patched", "—"), "level": p.get("level", "—")}
-    return {"rank": "—", "level": "—"}
+                return {"rank": p.get("currenttier_patched", "—"), "level": p.get("level", "—"),
+                        "tier": p.get("currenttier", 0)}
+    return {"rank": "—", "level": "—", "tier": 0}
 
 
 def act_match_ids(client, cfg, queue="competitive"):
@@ -92,6 +93,54 @@ def load_details(client, ids, allow_fetch=True, log=lambda *_: None, sleep=2.2):
     return matches, fetched, missing
 
 
+# --- résumé compact d'un joueur (onglet Team) -------------------------------
+def player_summary(client, game_name, tag_line, queue="competitive",
+                   count=15, allow_fetch=True, log=lambda *_: None):
+    """Résumé léger des `count` dernières parties d'un joueur (forme récente).
+
+    Réutilise le cache global des matchs : deux coéquipiers partageant une partie
+    ne la téléchargent qu'une fois.
+    """
+    stored = client.get_stored_matches(game_name, tag_line, queue, size=count)
+    if not stored:
+        return {"games": 0, "fetched": 0, "missing": 0}
+    ids = [m["meta"]["id"] for m in stored[:count]]
+    matches, fetched, missing = load_details(client, ids, allow_fetch=allow_fetch, log=log)
+    if not matches:
+        return {"games": 0, "fetched": fetched, "missing": missing}
+
+    puuid = _find_me(matches, game_name, tag_line)
+    ov = aggregate(matches, puuid, queue)
+    ka = advanced.kast(matches, puuid)
+    fc = first_contact.compute(matches, puuid)
+    imgs = _collect_agent_imgs(matches)
+    meta = _player_meta(matches, puuid)
+
+    agents = list(ov.get("agents", {}).items())
+    top_agents = [{"name": a, "games": s["games"], "win_rate": s["win_rate"],
+                   "kd": s["kd"], "icon": imgs.get(a, {}).get("icon")}
+                  for a, s in agents[:3]]
+    top_agent = agents[0][0] if agents else None
+    agent_bg = imgs.get(top_agent, {}).get("portrait") if top_agent else None
+
+    rk = ranks.info(meta.get("tier"), meta["rank"])
+    return {
+        "games": ov.get("games", 0),
+        "rank": meta["rank"], "level": meta["level"],
+        "rank_icon": rk["icon"], "rank_color": rk["color"],
+        "win_rate": ov.get("win_rate"), "wins": ov.get("wins"), "losses": ov.get("losses"),
+        "kd": ov.get("kd"), "kda": ov.get("kda"),
+        "avg_acs": ov.get("avg_acs"),
+        "avg_kills": ov.get("avg_kills"), "avg_deaths": ov.get("avg_deaths"),
+        "avg_assists": ov.get("avg_assists"),
+        "avg_hs_pct": ov.get("avg_hs_pct"),
+        "kast": ka.get("kast"), "fcs": fc.get("fcs"),
+        "top_agents": top_agents, "agent_bg": agent_bg,
+        "recent": ov.get("recent", [])[:5],
+        "fetched": fetched, "missing": missing,
+    }
+
+
 # --- build ------------------------------------------------------------------
 def build_data(client, cfg, queue=None, allow_fetch=True, want_analysis=True,
                log=lambda *_: None):
@@ -125,9 +174,10 @@ def build_data(client, cfg, queue=None, allow_fetch=True, want_analysis=True,
         except Exception as e:  # noqa: BLE001
             log(f"  (analyse indisponible : {str(e)[:100]})")
 
+    rk = ranks.info(meta.get("tier"), meta["rank"])
     data = {
         "player": {"name": cfg.riot_id, "rank": meta["rank"], "level": meta["level"],
-                   "agent_bg": agent_bg},
+                   "rank_icon": rk["icon"], "rank_color": rk["color"], "agent_bg": agent_bg},
         "act": act_short,
         "queue": queue,
         "region": cfg.region,

@@ -112,6 +112,11 @@ def render(data: dict) -> str:
 
     name = _esc(p["name"])
     rank = _esc(p.get("rank", "—"))
+    rank_icon = p.get("rank_icon")
+    rank_color = p.get("rank_color") or "#ffd479"
+    _emblem = f'<img class="rk-emblem" src="{_esc(rank_icon)}" alt="">' if rank_icon else ""
+    rank_pill = (f'<span class="pill rk" style="border-color:{rank_color}66;color:{rank_color}">'
+                 f'{_emblem}{rank}</span>')
     level = _esc(p.get("level", "—"))
     act = _esc(data.get("act", "—"))
     gen = _esc(data.get("generated", datetime.now().strftime("%Y-%m-%d %H:%M")))
@@ -283,7 +288,7 @@ def render(data: dict) -> str:
         return v if v is not None else "n/d"
 
     return _PAGE.format(
-        css=_CSS, js=_JS, name=name, rank=rank, level=level, act=act, gen=gen,
+        css=_CSS, js=_JS, name=name, rank=rank, rank_pill=rank_pill, level=level, act=act, gen=gen,
         queue=queue, qswitch=_queue_switch(queue), bg_layer=bg_layer,
         userbg=userbg, body_class=body_class, dim=bg_dim,
         region_options=region_options,
@@ -364,7 +369,8 @@ body{position:relative;overflow-x:hidden;background:transparent}
 .who h1{font-size:32px;font-weight:900;letter-spacing:-.02em;line-height:1.05}
 .pills{display:flex;gap:7px;flex-wrap:wrap;margin-top:7px}
 .pill{font-size:12px;font-weight:800;padding:5px 11px;border-radius:999px;border:1px solid var(--brd);background:var(--glass)}
-.pill.rk{color:#9fd8ff;border-color:rgba(159,216,255,.42)}
+.pill.rk{color:#9fd8ff;border-color:rgba(159,216,255,.42);display:inline-flex;align-items:center;gap:6px;padding-left:6px}
+.rk-emblem{width:22px;height:22px;object-fit:contain;filter:drop-shadow(0 1px 3px rgba(0,0,0,.5))}
 .pill.ac{color:var(--mint);border-color:rgba(55,224,166,.42)}
 .spacer{flex:1}.controls{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .qswitch{display:flex;background:var(--glass);border:1px solid var(--brd);border-radius:12px;padding:3px}
@@ -492,6 +498,104 @@ body{position:relative;overflow-x:hidden;background:transparent}
  .bar-row{grid-template-columns:120px 1fr 52px}.wrow{grid-template-columns:110px 1fr 50px 56px}
  .match{grid-template-columns:24px 28px 1fr auto auto}.m-map,.m-kda{display:none}
  .prec-leg{flex-wrap:wrap;gap:12px}}
+/* Carrière — Destin de rêve VALORANT */
+.car-wrap{max-width:760px;margin:0 auto}
+.car-hero{text-align:center;padding:14px 0 20px}
+.car-hero .kick{font-weight:900;letter-spacing:.22em;font-size:11px;color:#FF4655}
+.car-hero h1{font-size:34px;margin:6px 0 4px;letter-spacing:.02em}
+.car-hero p{color:var(--muted);margin:0 auto;max-width:440px;line-height:1.5;font-size:14px}
+.car-menu{display:flex;flex-direction:column;gap:10px;max-width:340px;margin:18px auto 0}
+.car-btn{font:inherit;font-weight:800;font-size:15px;cursor:pointer;padding:14px 18px;border-radius:14px;
+ border:1px solid var(--brd);background:var(--glass);color:var(--ink);text-align:center;transition:.15s}
+.car-btn:hover{border-color:rgba(255,70,85,.55);transform:translateY(-1px)}
+.car-btn.primary{color:#fff;border:0;background:linear-gradient(135deg,#FF4655,#ff2d8e)}
+.car-btn.ghost{background:transparent;font-size:13px;padding:10px}
+.car-btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+.car-step{color:var(--muted);font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;text-align:center}
+.car-q{font-size:20px;font-weight:800;text-align:center;margin:6px 0 16px}
+.car-opts{display:grid;gap:9px}
+.car-opt{cursor:pointer;padding:13px 15px;border-radius:13px;border:1px solid var(--brd);background:var(--glass);transition:.13s}
+.car-opt:hover{border-color:rgba(255,70,85,.5)}
+.car-opt.sel{border-color:#FF4655;background:rgba(255,70,85,.1)}
+.car-opt .t{font-weight:800;font-size:15px}
+.car-opt .d{color:var(--muted);font-size:12.5px;margin-top:3px;line-height:1.4}
+.car-input{width:100%;font:inherit;font-size:16px;padding:12px 14px;border-radius:12px;box-sizing:border-box;
+ background:rgba(255,255,255,.05);border:1px solid var(--brd);color:#fff;margin-bottom:10px}
+.car-nav{display:flex;justify-content:space-between;gap:10px;margin-top:18px}
+.car-hdr{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+.car-badge{width:52px;height:52px;border-radius:14px;display:grid;place-items:center;font-size:24px;
+ background:linear-gradient(135deg,rgba(255,70,85,.25),rgba(90,209,255,.15));border:1px solid var(--brd);flex:none}
+.car-id .nm{font-size:20px;font-weight:900}
+.car-id .sub{color:var(--muted);font-size:12.5px}
+.car-tags{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto}
+.car-tag{font-size:11px;font-weight:800;padding:4px 9px;border-radius:8px;background:var(--glass);border:1px solid var(--brd);color:var(--muted)}
+.car-tag.rk{color:#ffd479}
+.car-attrs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:4px 0 16px}
+.car-attr{background:var(--glass);border:1px solid var(--brd);border-radius:11px;padding:8px 11px}
+.car-attr .l{font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.car-attr .v{font-size:16px;font-weight:900}
+.car-attr .bar{height:5px;border-radius:4px;background:rgba(255,255,255,.1);overflow:hidden;margin-top:4px}
+.car-attr .bar>div{height:100%;background:linear-gradient(90deg,#7CF6C6,#5ad1ff)}
+.car-meters{display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);margin-bottom:14px}
+.car-meters b{color:var(--ink)}
+.car-card{background:var(--glass);border:1px solid var(--brd);border-radius:16px;padding:18px}
+.car-card .ev-tag{font-size:10.5px;font-weight:900;letter-spacing:.14em;text-transform:uppercase;color:#FF4655}
+.car-card .ev-title{font-size:18px;font-weight:800;margin:5px 0 8px}
+.car-card .ev-text{color:#cbd3e0;line-height:1.55;font-size:14px}
+.car-choices{display:grid;gap:8px;margin-top:14px}
+.car-outcome{margin-top:12px;padding:12px 14px;border-radius:12px;background:rgba(124,246,198,.08);
+ border:1px solid rgba(124,246,198,.3);color:#dfeee8;font-size:13.5px;line-height:1.5}
+.car-outcome.bad{background:rgba(255,70,85,.08);border-color:rgba(255,70,85,.3);color:#f4d9dd}
+.car-log{margin-top:14px;font-size:12.5px;color:var(--muted);line-height:1.7}
+.car-log .yr{color:var(--ink);font-weight:800}
+.car-delta{font-weight:800}.car-delta.up{color:#7CF6C6}.car-delta.dn{color:#FF6b78}
+.car-stars{color:#ffd479;letter-spacing:2px;font-size:15px}
+.car-legend{text-align:center}
+.car-legend .verdict{font-size:13px;font-weight:900;letter-spacing:.18em;text-transform:uppercase;color:#FF4655}
+.car-legend .lname{font-size:32px;font-weight:900;margin:4px 0}
+.car-palmares{display:grid;gap:6px;max-width:420px;margin:14px auto;text-align:left}
+.car-palmares .tr{display:flex;justify-content:space-between;padding:8px 12px;border-radius:10px;
+ background:var(--glass);border:1px solid var(--brd);font-size:13px}
+.car-panth{display:grid;gap:8px}
+.car-panth .row{display:flex;justify-content:space-between;align-items:center;padding:11px 14px;border-radius:12px;
+ background:var(--glass);border:1px solid var(--brd)}
+@media(max-width:560px){.car-attrs{grid-template-columns:repeat(2,1fr)}.car-hero h1{font-size:27px}}
+/* Team */
+.tm-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:8px}
+.tm-actions{display:flex;gap:8px;flex-wrap:wrap}
+.tm-syn{display:flex;gap:10px;flex-wrap:wrap;margin:6px 0 16px}
+.tm-syn .s{background:var(--glass);border:1px solid var(--brd);border-radius:12px;padding:9px 14px;min-width:88px}
+.tm-syn .s .l{font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.tm-syn .s .v{font-size:19px;font-weight:900}
+.tm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+.tm-card{position:relative;overflow:hidden;background:var(--glass);border:1px solid var(--brd);border-radius:16px;padding:14px}
+.tm-card .bg{position:absolute;inset:0;background-size:cover;background-position:top center;opacity:.12;pointer-events:none}
+.tm-card>*{position:relative}
+.tm-top{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.tm-name{font-weight:900;font-size:16px}
+.tm-sub{font-size:12px;color:var(--muted)}
+.tm-rank{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:11px;font-weight:800;text-align:right;line-height:1.3}
+.tm-rankimg{width:38px;height:38px;object-fit:contain;filter:drop-shadow(0 2px 6px rgba(0,0,0,.5))}
+.tm-ranktxt{white-space:nowrap}
+.tm-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px}
+.tm-k{background:rgba(255,255,255,.04);border:1px solid var(--brd);border-radius:10px;padding:7px 4px;text-align:center}
+.tm-k .l{font-size:9px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.tm-k .v{font-size:15px;font-weight:900}
+.tm-ags{display:flex;gap:6px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
+.tm-ag{display:flex;align-items:center;gap:5px;background:rgba(255,255,255,.05);border:1px solid var(--brd);border-radius:20px;padding:3px 9px 3px 3px;font-size:11px}
+.tm-ag img{width:20px;height:20px;border-radius:50%}
+.tm-form{display:flex;gap:4px}
+.tm-form .r{width:16px;height:16px;border-radius:5px;font-size:10px;font-weight:900;display:grid;place-items:center;color:#0a0a12}
+.tm-form .r.w{background:#7CF6C6}.tm-form .r.l{background:#FF6b78}
+.tm-empty{color:var(--muted);font-size:13px;padding:14px 0}
+.tm-cfg{display:grid;gap:8px;margin-bottom:14px}
+.tm-row{display:flex;gap:8px;align-items:center}
+.tm-row .idx{width:20px;text-align:center;color:var(--muted);font-weight:800}
+.tm-row input{flex:1;font:inherit;font-size:14px;padding:9px 12px;border-radius:10px;box-sizing:border-box;
+ background:rgba(255,255,255,.05);border:1px solid var(--brd);color:#fff}
+.tm-row select{font:inherit;font-size:13px;padding:9px;border-radius:10px;background:rgba(20,18,32,.9);border:1px solid var(--brd);color:#fff}
+.tm-msg{font-size:12.5px;color:var(--muted);min-height:16px;margin-top:2px}
+@media(max-width:560px){.tm-kpis{grid-template-columns:repeat(2,1fr)}}
 """
 
 _JS = """
@@ -560,6 +664,597 @@ _JS = """
    })}
  }
 })();
+
+/* ============ Carrière — Destin de rêve VALORANT ============ */
+(function(){
+ var root=document.getElementById('career-root');
+ if(!root) return;
+ var K='car_save_v1', KP='car_panth_v1';
+ var G=null;
+
+ function rnd(a,b){return Math.floor(Math.random()*(b-a+1))+a;}
+ function pick(a){return a[Math.floor(Math.random()*a.length)];}
+ function clamp(v){return Math.max(0,Math.min(100,Math.round(v)));}
+ function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+ function stars(n){var s='';for(var i=0;i<5;i++)s+=i<n?'★':'☆';return s;}
+
+ var COUNTRIES=[['🇫🇷 France','emea'],['🇬🇧 Royaume-Uni','emea'],['🇹🇷 Turquie','emea'],['🇸🇪 Suède','emea'],
+   ['🇪🇸 Espagne','emea'],['🇺🇸 USA','americas'],['🇧🇷 Brésil','americas'],['🇨🇦 Canada','americas'],
+   ['🇰🇷 Corée','pacific'],['🇯🇵 Japon','pacific'],['🇨🇳 Chine','pacific'],['🇮🇩 Indonésie','pacific']];
+ var ROLES={
+   duelist:{lbl:'Duelliste',emo:'⚔️',bias:{aim:12,clutch:8,team:-4}},
+   controller:{lbl:'Contrôleur',emo:'🌫️',bias:{iq:10,team:8,aim:-3}},
+   initiator:{lbl:'Initiateur',emo:'🎯',bias:{iq:8,team:6,clutch:2}},
+   sentinel:{lbl:'Sentinelle',emo:'🛡️',bias:{iq:6,mental:8,team:4,aim:-2}}};
+ var ORIGINS=[
+   {id:'cs',t:'Transfuge de CS:GO',d:'Un aim déjà taillé, mais des habitudes à désapprendre.',fx:{aim:14,mental:6,team:-6}},
+   {id:'prodige',t:'Prodige FPS',d:'Des réflexes hors normes repérés très tôt.',fx:{aim:12,clutch:10,mental:-4}},
+   {id:'igl',t:'Cerveau tactique',d:'Tu lis le jeu mieux que quiconque ; l’aim suivra.',fx:{iq:16,team:8,aim:-6}},
+   {id:'grind',t:'Roi du ranked',d:'Radiant à la sueur, douze heures par jour.',fx:{aim:8,form:10,mental:-6}},
+   {id:'academie',t:'Académie structurée',d:'Formé proprement, sans excès ni lacune.',fx:{team:10,iq:8,mental:4}}];
+ var LIVES=[
+   {id:'fer',t:'Discipline de fer',d:'Sommeil, sport, régularité. L’usure viendra tard.',fx:{mental:12,form:4,fame:-4}},
+   {id:'eq',t:'Équilibré',d:'Ni moine ni fêtard.',fx:{mental:4}},
+   {id:'nuit',t:'Noctambule grinder',d:'Des sessions de folie… et un corps qui trinque.',fx:{aim:8,form:6,mental:-8}}];
+ var ENTOURAGE=[
+   {id:'mentor',t:'Un coach mentor',d:'Quelqu’un qui croit en toi et te structure.',fx:{iq:8,mental:8}},
+   {id:'famille',t:'Famille sceptique',d:'« Trouve un vrai métier. » Ça forge le caractère.',fx:{mental:12,morale:-10}},
+   {id:'reseaux',t:'Star des réseaux',d:'Déjà une commu, déjà une image à tenir.',fx:{fame:20,mental:-6}}];
+ var TEAMS={
+   emea:{vct:['Fnatic','Team Vitality','Team Heretics','Karmine Corp','Team Liquid','NAVI','FUT','KOI','BBL','GiantX'],
+         chg:['Los Ratones','Apeks','Gentle Mates','Case Esports','Zeta Nova','Diamant Épée']},
+   americas:{vct:['Sentinels','LOUD','NRG','G2 Esports','Leviatán','MIBR','KRÜ','Cloud9','Evil Geniuses','100 Thieves'],
+         chg:['The Guard','Oxygen','M80','Shopify Rebellion','FlyQuest','Moist']},
+   pacific:{vct:['Paper Rex','DRX','T1','Gen.G','Team Secret','Rex Regum Qeon','Global Esports','Talon','ZETA','BLEED'],
+         chg:['BOOM','NongShim RedForce','Alter Ego','Dewa United','Reject','Nairo']}};
+ var REGN={emea:'EMEA',americas:'Americas',pacific:'Pacific'};
+
+ // ---- pool d'événements narratifs ----
+ var EVENTS=[
+  {tag:'Vestiaire',title:'Le rookie face au vétéran',text:'Un cadre de l’équipe critique ta prise d’espace en review. Devant tout le monde.',
+   ch:[{t:'Encaisser et bosser en silence',fx:{mental:6,team:5,morale:-4},out:'Tu ravales, tu notes, tu progresses. Le staff apprécie ton sang-froid.'},
+       {t:'Défendre ta lecture, calmement',fx:{team:-3,iq:5,fame:2},out:'Tu tiens ta position, arguments à l’appui. Certains grincent, d’autres respectent.'},
+       {t:'Répondre du tac au tac',fx:{team:-8,morale:5,mental:-2},out:'Ambiance électrique. Tu te sens vivant, mais le vestiaire se fissure.',bad:true}]},
+  {tag:'Contenu',title:'Stream ou scrims ?',text:'Ta chaîne explose. Un soir de gros scrims tombe pile sur ton créneau le plus rentable.',
+   ch:[{t:'Priorité aux scrims',fx:{team:6,iq:4,fame:-5},out:'Le coach te remarque. La commu boude un peu.'},
+       {t:'Un stream, vite fait',fx:{fame:8,form:-3},out:'Chiffres records… nuit trop courte.'},
+       {t:'Stream ET scrims, nuit blanche',fx:{fame:6,form:-6,mental:-4},out:'Tu fais tout. Ton corps envoie la facture.',bad:true}]},
+  {tag:'Méta',title:'Ton agent signature est nerfé',text:'Le patch massacre le perso sur lequel tu as bâti ta réputation.',
+   ch:[{t:'Apprendre un nouveau rôle',fx:{iq:8,team:6,form:-4},out:'Semaines difficiles, mais tu élargis ton arsenal.'},
+       {t:'Forcer ton perso quand même',fx:{aim:4,team:-5},out:'Par orgueil. Résultats en dents de scie.',bad:true},
+       {t:'Suivre la méta à la lettre',fx:{team:4,iq:3},out:'Pragmatique. Efficace, sans éclat.'}]},
+  {tag:'Sponsor',title:'Une marque veut ton visage',text:'Un équipementier propose un gros contrat d’image, avec obligations média.',
+   ch:[{t:'Signer, l’argent d’abord',fx:{money:40000,fame:12,form:-3},out:'Compte en banque ravi, agenda surchargé.'},
+       {t:'Négocier version light',fx:{money:18000,fame:5},out:'Un bon compromis, présenté par ton agent.'},
+       {t:'Refuser, focus jeu',fx:{iq:4,team:4,fame:-3},out:'Tes coéquipiers valident ce choix de pro.'}]},
+  {tag:'Mental',title:'Le doute après une contre-perf',text:'Un LAN raté. Les réseaux s’acharnent. Tu ne dors plus.',
+   ch:[{t:'Voir la psy de l’équipe',fx:{mental:12,morale:8,money:-3000},out:'Parler dénoue tout. Tu reviens plus solide.'},
+       {t:'Serrer les dents seul',fx:{mental:-6,form:-4},out:'Tu tiens… en surface.',bad:true},
+       {t:'Couper les réseaux 1 mois',fx:{mental:8,fame:-8,morale:5},out:'Silence radio salvateur, hype en pause.'}]},
+  {tag:'Leadership',title:'On te propose l’IGL',text:'Le calleur part. Le staff pense à toi pour diriger le jeu.',
+   ch:[{t:'Accepter le rôle d’IGL',fx:{iq:12,team:10,aim:-4,mental:-3},out:'Charge mentale énorme, mais tu grandis vite.'},
+       {t:'Refuser, rester fragger',fx:{aim:6,clutch:4},out:'Tu restes dans ta zone de confort meurtrière.'}]},
+  {tag:'Blessure',title:'Douleur au poignet',text:'Des fourmillements pendant les entraînements. Le médecin est prudent.',
+   ch:[{t:'Repos complet 3 semaines',fx:{form:-8,aim:-2,mental:4},out:'Tu manques des matchs, mais tu sauves ta main.'},
+       {t:'Infiltration et on continue',fx:{form:6,mental:-6,aim:-4},out:'Tu joues… le poignet s’en souviendra.',bad:true}]},
+  {tag:'Transfert',title:'Un rival te tend la main',text:'En coulisses d’un LAN, la star adverse te glisse : « Viens chez nous. »',
+   ch:[{t:'Écouter en secret',fx:{fame:4,team:-4},out:'Rumeurs de mercato… l’équipe le sent.'},
+       {t:'Rester loyal',fx:{team:8,morale:6},out:'Ta parole vaut de l’or dans le milieu.'}]},
+  {tag:'Vie perso',title:'Ta famille s’inquiète',text:'Tes proches trouvent que tu t’isoles dans le gaming house.',
+   ch:[{t:'Prendre un vrai week-end off',fx:{morale:10,mental:6,form:-2},out:'Tu reviens rechargé.'},
+       {t:'Rester grind',fx:{aim:4,form:3,morale:-6},out:'Le classement grimpe, le moral baisse.',bad:true}]},
+  {tag:'Communauté',title:'Un fan en détresse',text:'Un jeune t’écrit que tes matchs l’ont aidé à traverser une année sombre.',
+   ch:[{t:'Prendre le temps de répondre',fx:{morale:8,fame:4},out:'Un moment qui te rappelle pourquoi tu joues.'},
+       {t:'Un like et on passe',fx:{fame:1},out:'Le flux est incessant, tu fais au mieux.'}]},
+  {tag:'Discipline',title:'Clash sur les réseaux',text:'Tu balances un tweet cash sur un adversaire après une défaite.',
+   ch:[{t:'Assumer et t’excuser vite',fx:{fame:3,mental:4},out:'Tu désamorces proprement.'},
+       {t:'En rajouter une couche',fx:{fame:10,team:-6,morale:4},out:'Buzz énorme, staff furieux.',bad:true},
+       {t:'Supprimer, faire profil bas',fx:{fame:-4,mental:2},out:'Trop tard pour les captures, mais l’orage passe.'}]},
+  {tag:'Staff',title:'Nouveau coach, nouvelle philosophie',text:'Le coach arrivé veut tout changer dans ton rôle.',
+   ch:[{t:'Adhérer à 100%',fx:{iq:8,team:6,form:-3},out:'Transition rude, système plus solide.'},
+       {t:'Garder tes automatismes',fx:{aim:4,team:-4},out:'Frictions en review.',bad:true}]}
+ ];
+ // moments décisifs (skill-check), tirés aux gros stages
+ var DECISIVE=[
+  {tag:'Moment décisif',title:'Balle de match en finale',text:'12-12, dernier round de la grande finale. Le clutch 1v1 est pour toi.',
+   stat:function(p){return p.attrs.clutch*0.6+p.attrs.aim*0.4+p.morale*0.15;},thr:70,
+   win:'Tu poses la balle, tu tires, tu gagnes. Le stade explose. LÉGENDE.',
+   lose:'La main tremble d’un rien. Si près. La salle retient son souffle, puis soupire.',
+   fxWin:{fame:18,clutch:6,mental:6,morale:12},fxLose:{mental:-8,morale:-10,clutch:3}},
+  {tag:'Moment décisif',title:'Nerfs d’acier au micro',text:'Timeout, égalité, tout le monde panique. À toi de reprendre le call.',
+   stat:function(p){return p.attrs.iq*0.5+p.attrs.mental*0.4+p.attrs.team*0.2;},thr:66,
+   win:'Ton call clair remet l’équipe dans le match. Retournement total.',
+   lose:'Le message passe mal, le round part en fumée.',
+   fxWin:{iq:6,team:8,fame:8,morale:8},fxLose:{team:-4,morale:-8}}
+ ];
+
+ function save(){try{localStorage.setItem(K,JSON.stringify(G));}catch(e){}}
+ function load(){try{return JSON.parse(localStorage.getItem(K));}catch(e){return null;}}
+ function panth(){try{return JSON.parse(localStorage.getItem(KP))||[];}catch(e){return [];}}
+ function pushPanth(l){var a=panth();a.unshift(l);try{localStorage.setItem(KP,JSON.stringify(a.slice(0,30)));}catch(e){}}
+
+ function capFor(p,k){ // plafond de talent : le potentiel borne VRAIMENT les skills
+   if(k==='aim'||k==='clutch')return p.cap;
+   if(k==='iq'||k==='team')return p.cap+6;
+   if(k==='mental')return p.cap+18;
+   return 100;
+ }
+ function applyFx(p,fx){for(var k in fx){
+   if(k==='money'){p.money+=fx[k];}
+   else if(k==='fame'){p.fame=clamp(p.fame+fx[k]);}
+   else if(k==='morale'){p.morale=clamp(p.morale+fx[k]);}
+   else if(p.attrs[k]!=null){p.attrs[k]=Math.max(0,Math.min(capFor(p,k),Math.round(p.attrs[k]+fx[k])));}
+ }}
+
+ // ---------------- écrans ----------------
+ function screenHome(){
+   var has=load(), p=panth();
+   var h='<div class="car-hero"><div class="kick">MODE CARRIÈRE</div>'
+     +'<h1>Destin de rêve <span style="color:#FF4655">VALORANT</span></h1>'
+     +'<p>Crée un joueur de 16 ans et vis toute sa carrière esport, saison après saison : '
+     +'choix décisifs, transferts, gloire et chutes… jusqu’à sa carte de légende.</p></div>'
+     +'<div class="car-menu">';
+   if(has) h+='<button class="car-btn primary" data-a="resume">▶ Reprendre — '+esc(has.p.name)+' ('+has.p.age+' ans)</button>';
+   h+='<button class="car-btn'+(has?'':' primary')+'" data-a="new">＋ Nouvelle carrière</button>';
+   h+='<button class="car-btn ghost" data-a="panth">🏛️ Panthéon ('+p.length+')</button>';
+   h+='</div>';
+   root.innerHTML=h;
+ }
+
+ var draft=null;
+ function screenCreate(step){
+   draft=draft||{name:'',country:null,role:null,origin:null,life:null,ent:null};
+   var steps=['name','role','origin','life','ent','confirm'];
+   step=step||0; draft._step=step;
+   var h='<div class="car-step">Création · étape '+(step+1)+'/6</div>';
+   if(step===0){
+     h+='<div class="car-q">Ton identité</div>'
+       +'<input class="car-input" id="c-name" maxlength="16" placeholder="Pseudo (ex: nAts, Derke…)" value="'+esc(draft.name)+'">'
+       +'<div class="car-opts">'+COUNTRIES.map(function(c,i){
+         return '<div class="car-opt'+(draft.country===i?' sel':'')+'" data-country="'+i+'"><span class="t">'+c[0]+'</span></div>';
+       }).join('')+'</div>';
+   } else if(step===1){
+     h+='<div class="car-q">Ton rôle sur le serveur</div><div class="car-opts">'
+       +Object.keys(ROLES).map(function(k){var r=ROLES[k];
+         return '<div class="car-opt'+(draft.role===k?' sel':'')+'" data-role="'+k+'"><div class="t">'+r.emo+' '+r.lbl+'</div></div>';
+       }).join('')+'</div>';
+   } else if(step===2){ h+=optList('D’où viens-tu ?',ORIGINS,'origin',draft.origin); }
+   else if(step===3){ h+=optList('Ton hygiène de vie',LIVES,'life',draft.life); }
+   else if(step===4){ h+=optList('Ton entourage',ENTOURAGE,'ent',draft.ent); }
+   else { // confirm
+     h+='<div class="car-q">Prêt à écrire ta légende ?</div>'
+       +'<div class="car-card"><div class="ev-text">'
+       +'<b>'+esc(draft.name||'Rookie')+'</b> · '+COUNTRIES[draft.country][0]+'<br>'
+       +ROLES[draft.role].emo+' '+ROLES[draft.role].lbl+' · '+ORIGINS.find(o=>o.id===draft.origin).t+'<br>'
+       +LIVES.find(o=>o.id===draft.life).t+' · '+ENTOURAGE.find(o=>o.id===draft.ent).t
+       +'<br><br>Ton potentiel réel reste caché : seuls les scouts le devineront, au fil des saisons.</div></div>';
+   }
+   h+='<div class="car-nav"><button class="car-btn ghost" data-nav="back">'+(step===0?'← Menu':'← Retour')+'</button>';
+   h+='<button class="car-btn primary" data-nav="next" id="c-next">'+(step===5?'🚀 Lancer la carrière':'Continuer →')+'</button></div>';
+   root.innerHTML=h;
+ }
+ function optList(q,arr,key,cur){
+   return '<div class="car-q">'+q+'</div><div class="car-opts">'+arr.map(function(o){
+     return '<div class="car-opt'+(cur===o.id?' sel':'')+'" data-opt="'+key+'" data-id="'+o.id+'">'
+       +'<div class="t">'+o.t+'</div><div class="d">'+o.d+'</div></div>';}).join('')+'</div>';
+ }
+ function createValid(){
+   var s=draft._step;
+   if(s===0)return draft.name.trim().length>0&&draft.country!=null;
+   if(s===1)return !!draft.role; if(s===2)return !!draft.origin;
+   if(s===3)return !!draft.life; if(s===4)return !!draft.ent; return true;
+ }
+
+ function startGame(){
+   var base={aim:45,iq:45,mental:45,clutch:45,team:45,form:58};
+   applyDelta(base,ROLES[draft.role].bias);
+   var pot=weightedPot();
+   var p={name:draft.name.trim(),country:COUNTRIES[draft.country][0],region:COUNTRIES[draft.country][1],
+     role:draft.role,age:16,attrs:base,fame:20,morale:60,money:0,
+     potential:pot,cap:44+pot*7,potShown:false,tier:'chg',team:null,
+     palmares:[],history:[],peak:0,retired:false};
+   applyFx(p,ORIGINS.find(o=>o.id===draft.origin).fx);
+   applyFx(p,LIVES.find(o=>o.id===draft.life).fx);
+   applyFx(p,ENTOURAGE.find(o=>o.id===draft.ent).fx);
+   p.team=pick(TEAMS[p.region].chg);
+   G={p:p,season:1,screen:'season',phase:null,queue:[],cur:null,lastOut:null,result:null,offers:null};
+   draft=null; save(); startSeason();
+ }
+ function applyDelta(a,fx){for(var k in fx)if(a[k]!=null)a[k]=clamp(a[k]+fx[k]);}
+ function weightedPot(){var r=Math.random();return r<0.06?5:r<0.22?4:r<0.55?3:r<0.85?2:1;}
+
+ function startSeason(){
+   var p=G.p; var n=rnd(2,3), q=[];
+   var pool=EVENTS.slice();
+   for(var i=0;i<n;i++){var e=pick(pool);pool.splice(pool.indexOf(e),1);q.push({type:'ev',e:e});}
+   // moment décisif si bon niveau / gros stage
+   if(p.tier==='vct'&&Math.random()<0.5) q.push({type:'dec',e:pick(DECISIVE)});
+   G.queue=q; G.phase='events'; G.cur=null; G.lastOut=null; G.screen='season';
+   save(); nextStep();
+ }
+ function nextStep(){
+   if(G.queue.length===0){ simulate(); return; }
+   G.cur=G.queue.shift(); G.lastOut=null; render();
+ }
+
+ function header(){
+   var p=G.p;
+   var pot=p.potShown?'<span class="car-tag rk" title="Potentiel estimé">'+stars(p.potential)+'</span>':'';
+   return '<div class="car-hdr"><div class="car-badge">'+ROLES[p.role].emo+'</div>'
+     +'<div class="car-id"><div class="nm">'+esc(p.name)+'</div>'
+     +'<div class="sub">'+esc(p.team)+' · '+REGN[p.region]+' · '+(p.tier==='vct'?'VCT':'Challengers')+'</div></div>'
+     +'<div class="car-tags"><span class="car-tag">'+p.age+' ans</span>'
+     +'<span class="car-tag">Saison '+G.season+'</span>'+pot+'</div></div>';
+ }
+ function attrsHtml(){
+   var p=G.p, A=[['aim','Aim'],['iq','Game Sense'],['clutch','Clutch'],['team','Teamplay'],['mental','Mental'],['form','Forme']];
+   return '<div class="car-attrs">'+A.map(function(a){var v=p.attrs[a[0]];
+     return '<div class="car-attr"><div class="l">'+a[1]+'</div><div class="v">'+v+'</div>'
+       +'<div class="bar"><div style="width:'+v+'%"></div></div></div>';}).join('')+'</div>'
+     +'<div class="car-meters"><span>🔥 Notoriété <b>'+p.fame+'</b></span>'
+     +'<span>🙂 Moral <b>'+p.morale+'</b></span><span>💰 <b>'+p.money.toLocaleString('fr-FR')+' €</b></span>'
+     +'<span>🏆 <b>'+p.palmares.length+'</b> titre(s)</span></div>';
+ }
+
+ function render(){
+   if(G.screen==='season'){
+     var h=header()+attrsHtml();
+     var step=G.cur;
+     if(!step){ root.innerHTML=h; return; }
+     var e=step.e;
+     h+='<div class="car-card"><div class="ev-tag">'+e.tag+'</div>'
+       +'<div class="ev-title">'+e.title+'</div><div class="ev-text">'+e.text+'</div>';
+     if(G.lastOut){
+       h+='<div class="car-outcome'+(G.lastOut.bad?' bad':'')+'">'+G.lastOut.txt+'</div>'
+         +'<div class="car-nav"><span></span><button class="car-btn primary" data-nav="cont">Continuer →</button></div>';
+     } else if(step.type==='dec'){
+       h+='<div class="car-choices"><button class="car-btn" data-dec="1">Tenter le moment décisif</button></div>';
+     } else {
+       h+='<div class="car-choices">'+e.ch.map(function(c,i){
+         return '<button class="car-btn" data-ch="'+i+'">'+c.t+'</button>';}).join('')+'</div>';
+     }
+     h+='</div>';
+     root.innerHTML=h;
+   } else if(G.screen==='result'){ renderResult(); }
+   else if(G.screen==='mercato'){ renderMercato(); }
+   else if(G.screen==='legend'){ renderLegend(); }
+ }
+
+ function chooseEvent(i){
+   var c=G.cur.e.ch[i]; applyFx(G.p,c.fx);
+   G.lastOut={txt:c.out,bad:!!c.bad}; save(); render();
+ }
+ function doDecisive(){
+   var d=G.cur.e, p=G.p, sc=d.stat(p)+rnd(-10,10), ok=sc>=d.thr;
+   applyFx(p, ok?d.fxWin:d.fxLose);
+   if(ok) p._decWin=(p._decWin||0)+1;
+   G.lastOut={txt:(ok?d.win:d.lose),bad:!ok}; save(); render();
+ }
+
+ function coreRating(p){
+   return p.attrs.aim*0.30+p.attrs.clutch*0.18+p.attrs.iq*0.22+p.attrs.team*0.15+p.attrs.form*0.15;
+ }
+ function simulate(){
+   var p=G.p, core=coreRating(p);
+   var rating=clamp(core*(0.90+p.morale/700)+rnd(-5,6));
+   if(rating>p.peak)p.peak=rating;
+   var year=2026+(G.season-1);
+   var titles=[], promo=false, releg=false, place;
+   if(p.tier==='chg'){
+     if(rating>=70&&Math.random()<0.55){titles.push('Champion Challengers '+REGN[p.region]+' '+year);place='🥇 1er';promo=Math.random()<0.6;}
+     else if(rating>=58){place='Top 4';promo=rating>=64&&Math.random()<0.4;}
+     else if(rating>=46){place='Milieu de tableau';}
+     else {place='Bas de tableau';}
+   } else {
+     if(rating>=86&&Math.random()<0.3){titles.push('🌍 Champion du Monde '+year+' (Champions)');place='🏆 Champion du monde';}
+     else if(rating>=80&&Math.random()<0.38){titles.push('Masters '+year);place='Vainqueur Masters';}
+     else if(rating>=73&&Math.random()<0.5){titles.push('VCT '+REGN[p.region]+' '+year);place='🥇 Champion régional';}
+     else if(rating>=60){place='Playoffs';}
+     else if(rating>=48){place='Phase de groupes';}
+     else {place='Éliminé tôt';releg=Math.random()<0.45;}
+   }
+   // récompenses
+   var fameGain=Math.round((rating-45)*0.4+(p.tier==='vct'?6:2)+titles.length*10);
+   p.fame=clamp(p.fame+fameGain);
+   var salary=(p.tier==='vct'?60000:12000)+Math.round(p.fame*400);
+   var prize=titles.length*(p.tier==='vct'?50000:8000);
+   p.money+=salary+prize;
+   p.morale=clamp(p.morale+(titles.length?12:(rating>=56?3:-6)));
+   p.palmares=p.palmares.concat(titles);
+   // croissance / vieillissement
+   grow(p);
+   p.history.push({season:G.season,year:year,team:p.team,tier:p.tier,rating:rating,place:place,titles:titles});
+   if(!p.potShown&&G.season>=2)p.potShown=true;
+   G.result={rating:rating,place:place,titles:titles,fameGain:fameGain,salary:salary,prize:prize,promo:promo,releg:releg};
+   G.screen='result'; save(); render();
+ }
+ function grow(p){
+   var cap=p.cap;                         // pot 1→51 … 5→79 : le talent plafonne
+   var young=p.age<=23, prime=p.age<=26;
+   ['aim','clutch'].forEach(function(k){
+     if(young&&p.attrs[k]<cap)p.attrs[k]=clamp(p.attrs[k]+Math.min(cap-p.attrs[k],rnd(1,4)));
+     else if(!prime)p.attrs[k]=clamp(p.attrs[k]-rnd(1,4));   // déclin des réflexes
+   });
+   ['iq','team'].forEach(function(k){ if(p.age<=29&&p.attrs[k]<cap+6)p.attrs[k]=clamp(p.attrs[k]+rnd(1,3)); });
+   p.attrs.mental=clamp(p.attrs.mental+(p.morale>60?1:-1));
+   p.attrs.form=clamp(58+rnd(-9,9)-(p.age>27?(p.age-27)*4:0));
+ }
+
+ function renderResult(){
+   var p=G.p, r=G.result;
+   var h=header();
+   h+='<div class="car-card"><div class="ev-tag">Bilan · Saison '+G.season+'</div>'
+     +'<div class="ev-title">Note de saison : '+r.rating+'/100</div>'
+     +'<div class="ev-text">Résultat : <b>'+r.place+'</b>'
+     +(r.titles.length?'<br>🏆 '+r.titles.map(esc).join('<br>🏆 '):'')
+     +'<br><br>Notoriété <span class="car-delta '+(r.fameGain>=0?'up">+':'dn">')+r.fameGain+'</span>'
+     +' · Gains <b>'+(r.salary+r.prize).toLocaleString('fr-FR')+' €</b>'
+     +(r.promo?'<br><span class="car-delta up">↑ Une équipe VCT s’intéresse à toi !</span>':'')
+     +(r.releg?'<br><span class="car-delta dn">↓ Ton équipe vacille…</span>':'')
+     +'</div>';
+   h+='<div class="car-nav"><span></span><button class="car-btn primary" data-nav="mercato">Mercato →</button></div></div>';
+   root.innerHTML=h;
+ }
+
+ function buildOffers(){
+   var p=G.p, offers=[], r=G.result;
+   var vctOK=(p.tier==='vct')||r.promo||p.fame>=60;
+   if(vctOK){ var pool=TEAMS[p.region].vct.filter(function(t){return t!==p.team;});
+     for(var i=0;i<2;i++){var t=pick(pool);pool.splice(pool.indexOf(t),1);
+       offers.push({team:t,tier:'vct',salary:80000+rnd(0,120)*1000,txt:'Projet VCT ambitieux'});}}
+   // rester
+   if(!r.releg||p.tier==='chg') offers.push({team:p.team,tier:p.tier,salary:(p.tier==='vct'?70000:14000),txt:'Rester, fidèle à ton équipe',stay:true});
+   // une option challengers si en difficulté
+   if(p.tier==='vct'&&r.releg){var cp=pick(TEAMS[p.region].chg);offers.push({team:cp,tier:'chg',salary:16000,txt:'Rebond en Challengers'});}
+   if(p.tier==='chg'){var cp2=TEAMS[p.region].chg.filter(function(t){return t!==p.team;});offers.push({team:pick(cp2),tier:'chg',salary:15000,txt:'Nouveau projet Challengers'});}
+   return offers;
+ }
+ function renderMercato(){
+   var p=G.p;
+   if(!G.offers)G.offers=buildOffers();
+   var h=header()+'<div class="car-q" style="margin-top:4px">Mercato — quelle est la suite ?</div>';
+   h+='<div class="car-opts">'+G.offers.map(function(o,i){
+     return '<div class="car-opt" data-offer="'+i+'"><div class="t">'+(o.tier==='vct'?'🏆 ':'')+esc(o.team)
+       +' <span style="color:var(--muted);font-weight:600">· '+(o.tier==='vct'?'VCT':'Challengers')+'</span></div>'
+       +'<div class="d">'+o.txt+' — '+o.salary.toLocaleString('fr-FR')+' €/an</div></div>';}).join('')+'</div>';
+   if(p.age>=27) h+='<div class="car-nav"><button class="car-btn ghost" data-retire="1">🎬 Prendre sa retraite</button><span></span></div>';
+   root.innerHTML=h;
+ }
+ function chooseOffer(i){
+   var o=G.offers[i], p=G.p;
+   p.team=o.team; p.tier=o.tier;
+   G.offers=null; G.result=null; G.season++; p.age++;
+   if(forcedRetire(p)){ retire('age'); return; }
+   startSeason();
+ }
+ function forcedRetire(p){ return p.age>=30 || (p.age>=27&&p.attrs.form<40) || p.morale<=6; }
+
+ function retire(reason){
+   var p=G.p;
+   var champ=p.palmares.filter(function(t){return t.indexOf('Champion du Monde')>=0;}).length;
+   var masters=p.palmares.filter(function(t){return t.indexOf('Masters')>=0;}).length;
+   var reg=p.palmares.filter(function(t){return t.indexOf('VCT ')>=0;}).length;
+   var chg=p.palmares.filter(function(t){return t.indexOf('Challengers')>=0;}).length;
+   var score=champ*7+masters*4+reg*1.4+chg*0.5+(p._decWin||0)*0.4+Math.max(0,p.peak-55)/12+p.fame/45;
+   var verdict,st;
+   if(score>=22){verdict='LÉGENDE ÉTERNELLE';st=5;}
+   else if(score>=13){verdict='STAR MONDIALE';st=4;}
+   else if(score>=7){verdict='JOUEUR SOLIDE';st=3;}
+   else if(score>=3){verdict='JOURNEYMAN';st=2;}
+   else {verdict='MÉTÉORE';st=1;}
+   var legend={name:p.name,country:p.country,role:ROLES[p.role].lbl,years:(2026)+'–'+(2026+G.season-1),
+     age:p.age,peak:p.peak,fame:p.fame,titles:p.palmares.slice(),verdict:verdict,stars:st,
+     teams:[].concat.apply([],[p.history.map(function(h){return h.team;})]).filter(function(v,i,a){return a.indexOf(v)===i;})};
+   G.legendCard=legend; G.screen='legend';
+   pushPanth(legend);
+   try{localStorage.removeItem(K);}catch(e){}
+   render();
+ }
+ function renderLegend(){
+   var l=G.legendCard;
+   var h='<div class="car-legend"><div class="verdict">'+l.verdict+'</div>'
+     +'<div class="lname">'+esc(l.name)+'</div>'
+     +'<div class="car-stars">'+stars(l.stars)+'</div>'
+     +'<div class="car-meters" style="justify-content:center;margin-top:10px">'
+     +'<span>'+l.country+'</span><span>'+l.role+'</span><span>'+l.years+'</span>'
+     +'<span>Pic '+l.peak+'/100</span><span>🔥 '+l.fame+'</span></div>';
+   if(l.titles.length){ h+='<div class="car-palmares">'
+     +l.titles.map(function(t){return '<div class="tr"><span>🏆 '+esc(t)+'</span></div>';}).join('')
+     +'</div>'; } else { h+='<p class="muted mini">Aucun titre majeur — mais chaque carrière raconte une histoire.</p>'; }
+   h+='<p class="muted mini" style="margin-top:8px">Équipes : '+l.teams.map(esc).join(' · ')+'</p>';
+   h+='<div class="car-menu"><button class="car-btn primary" data-a="new">＋ Nouvelle carrière</button>'
+     +'<button class="car-btn ghost" data-a="panth">🏛️ Voir le panthéon</button></div></div>';
+   root.innerHTML=h;
+ }
+ function renderPanth(){
+   var a=panth();
+   var h='<div class="car-step">Panthéon</div><div class="car-q">Tes légendes</div>';
+   if(!a.length){ h+='<p class="muted" style="text-align:center">Aucune carrière terminée pour l’instant.</p>'; }
+   else { h+='<div class="car-panth">'+a.map(function(l){
+     return '<div class="row"><div><b>'+esc(l.name)+'</b> <span class="car-stars">'+stars(l.stars)+'</span>'
+       +'<div class="sub" style="color:var(--muted);font-size:12px">'+l.verdict+' · '+l.country+' · '+l.role+' · '+l.titles.length+' titre(s)</div></div>'
+       +'<div style="text-align:right;color:var(--muted);font-size:12px">'+l.years+'</div></div>';}).join('')+'</div>'; }
+   h+='<div class="car-nav"><button class="car-btn ghost" data-a="home">← Menu</button><span></span></div>';
+   root.innerHTML=h;
+ }
+
+ // ---------------- routing / clics ----------------
+ root.addEventListener('click',function(ev){
+   var t=ev.target.closest('[data-a],[data-nav],[data-ch],[data-dec],[data-offer],[data-retire],[data-country],[data-role],[data-opt]');
+   if(!t)return;
+   if(t.dataset.a){var a=t.dataset.a;
+     if(a==='new'){draft=null;screenCreate(0);}
+     else if(a==='resume'){G=load();G.screen=G.screen||'season';routeGame();}
+     else if(a==='panth'){renderPanth();}
+     else if(a==='home'){screenHome();}
+     return;}
+   // création
+   if(t.dataset.country!=null){draft.country=+t.dataset.country;
+     var ni=document.getElementById('c-name');if(ni)draft.name=ni.value;screenCreate(0);return;}
+   if(t.dataset.role){draft.role=t.dataset.role;screenCreate(1);return;}
+   if(t.dataset.opt){draft[t.dataset.opt]=t.dataset.id;screenCreate(draft._step);return;}
+   if(t.dataset.nav){
+     var s=draft&&draft._step;
+     if(G&&G.screen==='result'&&t.dataset.nav==='mercato'){G.screen='mercato';G.offers=null;render();return;}
+     if(G&&G.cur&&t.dataset.nav==='cont'){nextStep();return;}
+     if(t.dataset.nav==='back'){ if(draft&&draft._step>0)screenCreate(draft._step-1); else screenHome(); return; }
+     if(t.dataset.nav==='next'){
+       var ni2=document.getElementById('c-name');if(ni2)draft.name=ni2.value;
+       if(!createValid()){var b=document.getElementById('c-next');if(b){b.textContent='Complète ce choix';setTimeout(function(){screenCreate(draft._step);},900);}return;}
+       if(draft._step===5)startGame(); else screenCreate(draft._step+1);
+     }
+     return;}
+   if(t.dataset.ch!=null){chooseEvent(+t.dataset.ch);return;}
+   if(t.dataset.dec){doDecisive();return;}
+   if(t.dataset.offer!=null){chooseOffer(+t.dataset.offer);return;}
+   if(t.dataset.retire){retire('choice');return;}
+ });
+ function routeGame(){ if(G.screen==='mercato'){G.offers=G.offers||null;renderMercato();}
+   else if(G.screen==='result'){render();} else { if(!G.cur&&(!G.queue||!G.queue.length)){startSeason();} else render(); } }
+
+ // init quand l'onglet Carrière s'ouvre
+ var opened=false;
+ document.querySelectorAll('.tab').forEach(function(tb){ if(tb.dataset.tab==='vct'){
+   tb.addEventListener('click',function(){ if(!opened){opened=true;screenHome();} });
+ }});
+})();
+
+/* ============ Suivi de team (5 joueurs) ============ */
+(function(){
+ var root=document.getElementById('team-root');
+ if(!root) return;
+ var REGIONS=['eu','na','ap','kr','latam','br'];
+ var team=[], sums={}, loading=false, opened=false;
+
+ function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+ function api(u,o){return fetch(u,o).then(function(r){return r.json();});}
+
+ function boot(){
+   api('/api/team').then(function(j){
+     team=(j.team||[]).slice(0,5);
+     render();
+     // auto-charge le cache (rapide) pour les emplacements configurés
+     team.forEach(function(p,i){ refreshSlot(i,false); });
+   });
+ }
+
+ function refreshSlot(i,fetchNet){
+   var p=team[i]; if(!p) return Promise.resolve();
+   sums[i]={loading:true}; render();
+   return api('/api/team/refresh?slot='+i+'&fetch='+(fetchNet?1:0)+'&queue='+QUEUE,{method:'POST'})
+     .then(function(j){ sums[i]=j; render(); })
+     .catch(function(){ sums[i]={error:'réseau'}; render(); });
+ }
+
+ function updateAll(){
+   if(loading) return; loading=true; render();
+   var chain=Promise.resolve();
+   team.forEach(function(p,i){ chain=chain.then(function(){ return refreshSlot(i,true); }); });
+   chain.then(function(){ loading=false; render(); });
+ }
+
+ function saveCfg(){
+   var players=[];
+   for(var i=0;i<5;i++){
+     var rid=(document.getElementById('tm-rid-'+i).value||'').trim();
+     var reg=document.getElementById('tm-reg-'+i).value;
+     players.push({riot_id:rid,region:reg});
+   }
+   var msg=document.getElementById('tm-cfg-msg'); msg.textContent='Enregistrement…';
+   api('/api/team/config',{method:'POST',headers:{'Content-Type':'application/json'},
+     body:JSON.stringify({players:players})}).then(function(j){
+     if(j.error){msg.textContent='⚠ '+j.error;return;}
+     team=j.team||[]; sums={}; msg.textContent='✓ Équipe enregistrée';
+     render(); team.forEach(function(p,i){ refreshSlot(i,false); });
+   }).catch(function(){msg.textContent='⚠ Serveur requis';});
+ }
+
+ // ---- synthèse d'équipe ----
+ function synthesis(){
+   var loaded=team.map(function(p,i){return sums[i];}).filter(function(s){return s&&s.summary&&s.summary.games;});
+   if(!loaded.length) return '';
+   var g=0,w=0,acsSum=0,acsN=0,kdN=0,kdSum=0;
+   loaded.forEach(function(s){var d=s.summary;g+=d.games;w+=(d.wins||0);
+     if(d.avg_acs){acsSum+=d.avg_acs;acsN++;} if(d.kd){kdSum+=d.kd;kdN++;}});
+   var wr=g?Math.round(w/g*1000)/10:0;
+   return '<div class="tm-syn">'
+     +cell('Joueurs',loaded.length+'/'+team.length)
+     +cell('Parties cumul.',g)
+     +cell('WR moyen',wr+'%')
+     +cell('ACS moyen',acsN?Math.round(acsSum/acsN):'–')
+     +cell('K/D moyen',kdN?(Math.round(kdSum/kdN*100)/100):'–')
+     +'</div>';
+ }
+ function cell(l,v){return '<div class="s"><div class="l">'+l+'</div><div class="v">'+v+'</div></div>';}
+
+ function card(p,s){
+   var bg=(s&&s.summary&&s.summary.agent_bg)?'<div class="bg" style="background-image:url('+esc(s.summary.agent_bg)+')"></div>':'';
+   var head='<div class="tm-top">'+bg+'<div><div class="tm-name">'+esc(p.riot_id)+'</div>'
+     +'<div class="tm-sub">'+esc(p.region.toUpperCase())+'</div></div>';
+   if(s&&s.loading){ return '<div class="tm-card">'+head+'<div class="tm-rank">⏳</div></div>'
+     +'<div class="tm-empty">Chargement…</div></div>'; }
+   if(s&&s.error){ return '<div class="tm-card">'+head+'</div>'
+     +'<div class="tm-empty">⚠ '+esc(s.error)+'</div></div>'; }
+   var d=s&&s.summary;
+   if(!d||!d.games){ return '<div class="tm-card">'+head+'</div>'
+     +'<div class="tm-empty">Aucune donnée en cache — clique « Mettre à jour ».</div></div>'; }
+   var rc=d.rank_color||'#ffd479';
+   var ric=d.rank_icon?'<img class="tm-rankimg" src="'+esc(d.rank_icon)+'" alt="">':'';
+   head+='<div class="tm-rank">'+ric+'<div class="tm-ranktxt"><span style="color:'+rc+'">'+esc(d.rank)
+     +'</span><br><span style="color:var(--muted)">Niv '+esc(d.level)+'</span></div></div></div>';
+   var kpis='<div class="tm-kpis">'
+     +kp('WR',(d.win_rate!=null?d.win_rate+'%':'–'))
+     +kp('K/D',d.kd!=null?d.kd:'–')
+     +kp('ACS',d.avg_acs!=null?d.avg_acs:'–')
+     +kp('KAST',d.kast!=null?d.kast+'%':'–')+'</div>';
+   var ags=(d.top_agents||[]).map(function(a){
+     var ic=a.icon?'<img src="'+esc(a.icon)+'">':'';
+     return '<span class="tm-ag">'+ic+esc(a.name)+' <b style="color:var(--muted)">'+a.games+'</b></span>';}).join('');
+   var form=(d.recent||[]).map(function(r){return '<div class="r '+(r.won?'w':'l')+'">'+(r.won?'V':'D')+'</div>';}).join('');
+   return '<div class="tm-card" style="border-top:3px solid '+rc+'">'+head+kpis
+     +'<div class="tm-ags">'+(ags||'<span class="tm-sub">—</span>')+'</div>'
+     +'<div class="tm-sub" style="margin-bottom:5px">'+d.games+' parties · '+d.wins+'V '+d.losses+'D · HS '
+     +(d.avg_hs_pct!=null?d.avg_hs_pct+'%':'n/d')+'</div>'
+     +'<div class="tm-form">'+form+'</div></div>';
+ }
+ function kp(l,v){return '<div class="tm-k"><div class="l">'+l+'</div><div class="v">'+v+'</div></div>';}
+
+ var showCfg=false;
+ function render(){
+   var h='<div class="tm-head"><div><h2 style="margin:0">👥 Ma Team</h2>'
+     +'<p class="muted mini" style="margin:4px 0 0">Suivi des '+(team.length||'')+' joueurs · '
+     +'15 dernières parties '+(QUEUE==='premier'?'Premier':'Ranked')+' · à la demande.</p></div>'
+     +'<div class="tm-actions">'
+     +'<button class="car-btn ghost" id="tm-toggle" type="button" style="padding:9px 14px">⚙ Configurer</button>'
+     +'<button class="car-btn primary" id="tm-update" type="button" style="padding:9px 16px"'+(loading?' disabled':'')+'>'
+     +(loading?'⏳ Mise à jour…':'↻ Mettre à jour')+'</button></div></div>';
+   if(showCfg||!team.length){
+     h+='<div class="tm-cfg">';
+     for(var i=0;i<5;i++){
+       var p=team[i]||{riot_id:'',region:'eu'};
+       h+='<div class="tm-row"><span class="idx">'+(i+1)+'</span>'
+         +'<input id="tm-rid-'+i+'" placeholder="Pseudo#TAG" value="'+esc(p.riot_id)+'" autocomplete="off">'
+         +'<select id="tm-reg-'+i+'">'+REGIONS.map(function(r){
+             return '<option value="'+r+'"'+(p.region===r?' selected':'')+'>'+r.toUpperCase()+'</option>';}).join('')
+         +'</select></div>';
+     }
+     h+='</div><div class="tm-actions"><button class="car-btn primary" id="tm-save" type="button" style="padding:9px 16px">💾 Enregistrer l’équipe</button></div>'
+       +'<div class="tm-msg" id="tm-cfg-msg"></div>';
+   }
+   if(team.length){
+     h+=synthesis();
+     h+='<div class="tm-grid">'+team.map(function(p,i){return card(p,sums[i]);}).join('')+'</div>';
+   }
+   root.innerHTML=h;
+   var tg=document.getElementById('tm-toggle'); if(tg)tg.onclick=function(){showCfg=!showCfg;render();};
+   var up=document.getElementById('tm-update'); if(up)up.onclick=updateAll;
+   var sv=document.getElementById('tm-save'); if(sv)sv.onclick=saveCfg;
+ }
+
+ document.querySelectorAll('.tab').forEach(function(tb){ if(tb.dataset.tab==='team'){
+   tb.addEventListener('click',function(){ if(!opened){opened=true;boot();} });
+ }});
+})();
 """
 
 _PAGE = """<!doctype html>
@@ -574,7 +1269,7 @@ _PAGE = """<!doctype html>
 
  <header class="top">
    <div class="who"><div class="brand">◆ Valo Stats</div><h1>{name}</h1>
-     <div class="pills"><span class="pill rk">{rank}</span>
+     <div class="pills">{rank_pill}
        <span class="pill">Niveau {level}</span><span class="pill ac">Saison {act}</span></div></div>
    <div class="spacer"></div>
    <div class="controls">{qswitch}
@@ -588,6 +1283,8 @@ _PAGE = """<!doctype html>
    <button class="tab" data-tab="agents">Agents</button>
    <button class="tab" data-tab="weapons">Armes</button>
    <button class="tab" data-tab="fc">First Contact</button>
+   <button class="tab" data-tab="team">👥 Team</button>
+   <button class="tab" data-tab="vct">🎮 Carrière</button>
  </nav>
 
  <section id="panel-ov" class="panel show">
@@ -642,9 +1339,18 @@ _PAGE = """<!doctype html>
    </div>
  </section>
 
+ <section id="panel-team" class="panel">
+   <div class="glass card section"><div id="team-root"></div></div>
+ </section>
+
+ <section id="panel-vct" class="panel">
+   <div class="glass card section"><div id="career-root" class="car-wrap"></div></div>
+ </section>
+
  <div class="foot">
-   Données via l'API tierce non officielle HenrikDev (non affiliée à Riot Games).<br>
-   Visuels d'agents / armes © Riot Games, servis par valorant-api.com — usage personnel.
+   Carrière « Destin de rêve » : jeu narratif, fiction. Inspiré du mode carrière d'Onze de Rêve.<br>
+   Noms d'équipes / compétitions cités à titre indicatif — non officiel, non affilié à Riot Games.<br>
+   Données perso via l'API tierce non officielle HenrikDev (non affiliée à Riot Games).
  </div>
 </div>
 
