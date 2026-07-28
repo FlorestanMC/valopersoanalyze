@@ -6,12 +6,15 @@ s'il en est la victime → First Death (FD).
 
 First Contact Success (FCS) = FK / (FK + FD) : proportion des duels d'ouverture
 auxquels le joueur a participé et qu'il a gagnés.
+
+On agrège aussi ces duels **par arme** : l'arme utilisée quand tu prends le
+premier kill, et l'arme qui te tue quand tu prends la première mort.
 """
 from collections import defaultdict
 
 
 def first_bloods(match: dict):
-    """Renvoie {round_index: (killer_puuid, victim_puuid)} pour chaque round joué."""
+    """Renvoie {round_index: kill_event} : le premier kill de chaque round."""
     by_round = {}
     best_time = {}
     for k in match.get("kills", []):
@@ -21,7 +24,7 @@ def first_bloods(match: dict):
             continue
         if r not in best_time or t < best_time[r]:
             best_time[r] = t
-            by_round[r] = (k.get("killer_puuid"), k.get("victim_puuid"))
+            by_round[r] = k
     return by_round
 
 
@@ -35,6 +38,7 @@ def _agent_of(match: dict, puuid: str) -> str:
 def compute(matches, puuid: str) -> dict:
     total = {"fk": 0, "fd": 0, "rounds": 0, "games": 0}
     by_agent = defaultdict(lambda: {"fk": 0, "fd": 0, "rounds": 0, "games": 0})
+    by_weapon = defaultdict(lambda: {"fk": 0, "fd": 0, "icon": None})
 
     for match in matches:
         agent = _agent_of(match, puuid)
@@ -42,11 +46,17 @@ def compute(matches, puuid: str) -> dict:
         fbs = first_bloods(match)
 
         g_fk = g_fd = 0
-        for killer, victim in fbs.values():
-            if killer == puuid:
+        for k in fbs.values():
+            name = k.get("damage_weapon_name") or "Melee/Autre"
+            icon = (k.get("damage_weapon_assets") or {}).get("display_icon")
+            if k.get("killer_puuid") == puuid:
                 g_fk += 1
-            elif victim == puuid:
+                by_weapon[name]["fk"] += 1
+                by_weapon[name]["icon"] = by_weapon[name]["icon"] or icon
+            elif k.get("victim_puuid") == puuid:
                 g_fd += 1
+                by_weapon[name]["fd"] += 1
+                by_weapon[name]["icon"] = by_weapon[name]["icon"] or icon
 
         total["fk"] += g_fk
         total["fd"] += g_fd
@@ -57,7 +67,7 @@ def compute(matches, puuid: str) -> dict:
         by_agent[agent]["rounds"] += rounds_played
         by_agent[agent]["games"] += 1
 
-    return _finalize(total, by_agent)
+    return _finalize(total, by_agent, by_weapon)
 
 
 def _rates(fk: int, fd: int, rounds: int) -> dict:
@@ -74,16 +84,22 @@ def _rates(fk: int, fd: int, rounds: int) -> dict:
     }
 
 
-def _finalize(total, by_agent) -> dict:
+def _finalize(total, by_agent, by_weapon) -> dict:
     out = {
         "games": total["games"],
         "rounds": total["rounds"],
         **_rates(total["fk"], total["fd"], total["rounds"]),
         "agents": {},
+        "weapons": [],
     }
     for agent, s in sorted(by_agent.items(), key=lambda kv: -(kv[1]["fk"] + kv[1]["fd"])):
         out["agents"][agent] = {
             "games": s["games"],
             **_rates(s["fk"], s["fd"], s["rounds"]),
         }
+    for name, s in sorted(by_weapon.items(), key=lambda kv: -(kv[1]["fk"] + kv[1]["fd"])):
+        out["weapons"].append({
+            "name": name, "fk": s["fk"], "fd": s["fd"],
+            "duels": s["fk"] + s["fd"], "icon": s["icon"],
+        })
     return out

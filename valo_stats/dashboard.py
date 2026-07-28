@@ -247,6 +247,23 @@ def render(data: dict) -> str:
     fc_bars_html = "".join(fc_bars) or '<p class="muted">Pas de duels enregistrés.</p>'
     fcs_gauge = _gauge(fcs, f"{fcs} %" if fcs is not None else "n/d", "First Contact Success")
 
+    # First Contact par arme (FK avec / FD subies face à)
+    fcw_rows = []
+    for w in fc.get("weapons", [])[:10]:
+        tot = (w["fk"] + w["fd"]) or 1
+        fkpct = w["fk"] / tot * 100
+        icon = (f'<img class="wic" src="{_esc(w["icon"])}" alt="" loading="lazy">'
+                if w.get("icon") else '<span class="wic"></span>')
+        fcw_rows.append(
+            f'<div class="wrow" title="{_esc(w["name"])} — {w["fk"]} FK / {w["fd"]} FD">'
+            f'<div class="wid">{icon}<span class="nm">{_esc(w["name"])}</span></div>'
+            f'<div class="split"><span style="width:{fkpct:.0f}%;background:{MINT}"></span>'
+            f'<span style="width:{100-fkpct:.0f}%;background:{RED}"></span></div>'
+            f'<div class="wk" style="color:{MINT}">{w["fk"]}<i>FK</i></div>'
+            f'<div class="wd" style="color:{RED}">{w["fd"]}<i>FD</i></div></div>'
+        )
+    fc_weapons_html = "".join(fcw_rows) or '<p class="muted">Aucune donnée par arme.</p>'
+
     # ---------- analyse ----------
     if analysis:
         analysis_html = f'<div class="analysis">{_md_to_html(analysis)}</div>'
@@ -270,6 +287,7 @@ def render(data: dict) -> str:
         rw=rw, rl=rl, kpis=kpis, map_bars=map_bars, matches=matches_html,
         agents=agents_html, weapons=weapons_html, precision=precision_html,
         fk=fk, fd=fd, donut=donut, fcs_gauge=fcs_gauge, fc_bars=fc_bars_html,
+        fc_weapons=fc_weapons_html,
         fk_pr=_pr(fc.get("fk_per_round")), fd_pr=_pr(fc.get("fd_per_round")),
         analysis=analysis_html,
     )
@@ -586,7 +604,12 @@ _PAGE = """<!doctype html>
        </div>
      </div>
    </div>
-   <div class="glass card"><h2>FCS par agent</h2>{fc_bars}</div>
+   <div class="cols">
+     <div class="glass card"><h2>FCS par agent</h2>{fc_bars}</div>
+     <div class="glass card"><h2>First Contact par arme</h2>{fc_weapons}
+       <p class="muted mini">Barre : part des duels gagnés (vert) vs perdus (rouge).
+         FK = kills d'ouverture avec cette arme · FD = morts d'ouverture face à elle.</p></div>
+   </div>
  </section>
 
  <div class="foot">

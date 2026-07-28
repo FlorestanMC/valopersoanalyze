@@ -102,6 +102,12 @@ def fmt_report(riot_id: str, act: str, fc: dict) -> str:
         lines.append(
             f"| {agent} | {a['games']} | {a['fk']} | {a['fd']} | {a['duels']} | {pct(a['fcs'])} |"
         )
+    if fc.get("weapons"):
+        lines.append("\n## Par arme")
+        lines.append("| Arme | FK (avec) | FD (subies) | Duels |")
+        lines.append("|------|----------:|------------:|------:|")
+        for w in fc["weapons"]:
+            lines.append(f"| {w['name']} | {w['fk']} | {w['fd']} | {w['duels']} |")
     lines.append(
         "\n_FCS = First Kills / (First Kills + First Deaths) : proportion des duels "
         "d'ouverture gagnés. Un FCS > 50 % signifie que tu gagnes plus de premiers "
