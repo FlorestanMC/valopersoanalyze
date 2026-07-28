@@ -29,6 +29,23 @@ class Config:
         return self.riot_id.split("#", 1)[1]
 
 
+def _target_override() -> dict:
+    """Compte ciblé défini dans les paramètres de l'app (userdata/settings.json)."""
+    try:
+        from . import settings
+        s = settings.load()
+    except Exception:  # noqa: BLE001
+        return {}
+    out = {}
+    rid = (s.get("riot_id") or "").strip()
+    reg = (s.get("region") or "").strip().lower()
+    if rid and "#" in rid:
+        out["riot_id"] = rid
+    if reg in REGIONS:
+        out["region"] = reg
+    return out
+
+
 def load_config() -> Config:
     def req(name: str) -> str:
         val = os.getenv(name, "").strip()
@@ -37,13 +54,18 @@ def load_config() -> Config:
         return val
 
     region = os.getenv("REGION", os.getenv("PLATFORM", "eu")).strip().lower()
+    riot_id = req("RIOT_ID")
+
+    # Surcharge éventuelle du compte ciblé via les paramètres de l'app.
+    ov = _target_override()
+    region = ov.get("region", region)
+    riot_id = ov.get("riot_id", riot_id)
+
     if region not in REGIONS:
         raise SystemExit(
             f"[config] REGION invalide : {region!r}. "
             f"Valeurs possibles : {', '.join(sorted(REGIONS))}"
         )
-
-    riot_id = req("RIOT_ID")
     if "#" not in riot_id:
         raise SystemExit("[config] RIOT_ID doit avoir la forme Pseudo#TAG")
 

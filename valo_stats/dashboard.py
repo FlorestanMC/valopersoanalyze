@@ -273,6 +273,12 @@ def render(data: dict) -> str:
 
     bg_layer = f'<div class="hero-portrait" style="background-image:url({_esc(bg)})"></div>' if bg else ""
 
+    cur_region = (data.get("region") or "eu").lower()
+    region_options = "".join(
+        f'<option value="{r}"{" selected" if r == cur_region else ""}>{r.upper()}</option>'
+        for r in ("na", "eu", "ap", "kr", "latam", "br")
+    )
+
     def _pr(v):
         return v if v is not None else "n/d"
 
@@ -280,6 +286,7 @@ def render(data: dict) -> str:
         css=_CSS, js=_JS, name=name, rank=rank, level=level, act=act, gen=gen,
         queue=queue, qswitch=_queue_switch(queue), bg_layer=bg_layer,
         userbg=userbg, body_class=body_class, dim=bg_dim,
+        region_options=region_options,
         mint=MINT, red=RED,
         wr=ov["win_rate"], wr_color=_accent(ov["win_rate"]),
         wins=ov.get("wins", 0), losses=ov.get("losses", 0), games=ov["games"],
@@ -326,6 +333,13 @@ body{position:relative;overflow-x:hidden;background:transparent}
  color:var(--muted);margin-bottom:18px}
 .field input[type=file]{color:var(--ink);font:inherit}
 .field input[type=range]{width:100%;accent-color:var(--red)}
+.field input[type=text],.field select{font:inherit;font-weight:600;color:var(--ink);
+ background:rgba(255,255,255,.06);border:1px solid var(--brd);border-radius:10px;padding:10px 12px}
+.field select{cursor:pointer}
+.field select option{background:#12121f;color:var(--ink)}
+.fgroup{padding-top:16px}
+.fgroup + .fgroup{border-top:1px solid var(--brd);margin-top:6px}
+.fg-title{font-size:14px;font-weight:900;margin-bottom:14px}
 .modal-actions{display:flex;gap:10px;flex-wrap:wrap}
 .btn-primary,.btn-ghost{font:inherit;font-weight:800;cursor:pointer;padding:10px 16px;border-radius:11px}
 .btn-primary{border:0;color:#fff;background:linear-gradient(135deg,var(--red),#ff2d8e)}
@@ -528,6 +542,22 @@ _JS = """
    if(rb){rb.addEventListener('click',function(){
      fetch('/api/background/reset',{method:'POST'}).then(function(){location.reload()}).catch(function(){});
    })}
+   var ta=document.getElementById('target-apply'), ri=document.getElementById('riot-id'),
+       rg=document.getElementById('region');
+   if(ta){ta.addEventListener('click',function(){
+     var rid=(ri.value||'').trim();
+     if(rid.indexOf('#')<1){ta.textContent='⚠ Format Pseudo#TAG';
+       setTimeout(function(){ta.textContent='Charger ce compte'},2200);return;}
+     ta.disabled=true;ta.textContent='⏳ Chargement du compte...';
+     fetch('/api/target',{method:'POST',headers:{'Content-Type':'application/json'},
+       body:JSON.stringify({riot_id:rid,region:rg.value})})
+      .then(function(r){return r.json()})
+      .then(function(j){if(j.error){ta.textContent='⚠ '+j.error;ta.disabled=false;return;}
+        ta.textContent='⏳ Téléchargement des parties...';
+        return fetch('/api/refresh?queue='+QUEUE,{method:'POST'})
+          .then(function(){location.href='/?queue='+QUEUE});})
+      .catch(function(){ta.textContent='⚠ Serveur requis';ta.disabled=false});
+   })}
  }
 })();
 """
@@ -620,17 +650,31 @@ _PAGE = """<!doctype html>
 
 <div id="modal" class="modal">
   <div class="modal-card glass">
-    <h3>🖼 Personnaliser le fond</h3>
-    <label class="field">Image de fond (jpg, png, webp, gif)
-      <input id="bg-file" type="file" accept="image/*"></label>
-    <label class="field">Assombrissement <span id="dim-val">{dim}%</span>
-      <input id="dim" type="range" min="0" max="90" value="{dim}"></label>
-    <div class="modal-actions">
-      <button id="bg-apply" class="btn-primary" type="button">Appliquer</button>
-      <button id="bg-reset" class="btn-ghost" type="button">Réinitialiser</button>
-      <button id="modal-close" class="btn-ghost" type="button">Fermer</button>
+    <h3>⚙ Paramètres</h3>
+    <div class="fgroup">
+      <div class="fg-title">🎯 Compte ciblé</div>
+      <label class="field">Riot ID (Pseudo#TAG)
+        <input id="riot-id" type="text" value="{name}" placeholder="Pseudo#TAG" autocomplete="off"></label>
+      <label class="field">Région
+        <select id="region">{region_options}</select></label>
+      <div class="modal-actions">
+        <button id="target-apply" class="btn-primary" type="button">Charger ce compte</button>
+      </div>
     </div>
-    <p class="muted mini">Nécessite le serveur local (python server.py).</p>
+    <div class="fgroup">
+      <div class="fg-title">🖼 Fond d'écran</div>
+      <label class="field">Image (jpg, png, webp, gif)
+        <input id="bg-file" type="file" accept="image/*"></label>
+      <label class="field">Assombrissement <span id="dim-val">{dim}%</span>
+        <input id="dim" type="range" min="0" max="90" value="{dim}"></label>
+      <div class="modal-actions">
+        <button id="bg-apply" class="btn-primary" type="button">Appliquer le fond</button>
+        <button id="bg-reset" class="btn-ghost" type="button">Réinitialiser</button>
+      </div>
+    </div>
+    <div class="modal-actions"><button id="modal-close" class="btn-ghost" type="button">Fermer</button></div>
+    <p class="muted mini">Nécessite le serveur local (python server.py). Changer de compte
+      télécharge ses parties (peut prendre 1-2 min la première fois).</p>
   </div>
 </div>
 

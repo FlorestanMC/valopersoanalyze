@@ -27,10 +27,15 @@ from valo_stats import pipeline, dashboard, settings
 
 PORT = 8770
 QUEUES = {"competitive", "premier"}
+REGIONS = {"na", "eu", "ap", "kr", "latam", "br"}
 
-cfg = load_config()
-client = HenrikClient(cfg.henrik_api_key, cfg.region)
 app = Flask(__name__)
+
+
+def _ctx():
+    """Config + client reconstruits à chaque requête (le compte ciblé peut changer)."""
+    cfg = load_config()
+    return cfg, HenrikClient(cfg.henrik_api_key, cfg.region)
 
 
 def _queue():
@@ -81,6 +86,7 @@ def _with_background(data):
 def index():
     # Chargement rapide : on n'utilise que le cache (pas de téléchargement).
     q = _queue()
+    cfg, client = _ctx()
     data, _ = pipeline.build_data(client, cfg, queue=q,
                                   allow_fetch=False, want_analysis=False)
     if data is None:
@@ -125,11 +131,25 @@ def update_settings():
 @app.post("/api/refresh")
 def refresh():
     # Récupère les nouvelles parties (et les manquantes) puis met à jour le cache.
+    cfg, client = _ctx()
     _, summary = pipeline.build_data(client, cfg, queue=_queue(),
                                      allow_fetch=True, want_analysis=False)
     return jsonify(fetched=summary.get("fetched", 0),
                    missing=summary.get("missing", 0),
                    total=summary.get("total", 0))
+
+
+@app.post("/api/target")
+def set_target():
+    data = request.get_json(silent=True) or {}
+    rid = (data.get("riot_id") or "").strip()
+    region = (data.get("region") or "").strip().lower()
+    if "#" not in rid:
+        return jsonify(error="Format attendu : Pseudo#TAG"), 400
+    if region and region not in REGIONS:
+        return jsonify(error="Région invalide"), 400
+    settings.set_target(rid, region or None)
+    return jsonify(ok=True)
 
 
 if __name__ == "__main__":

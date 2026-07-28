@@ -11,7 +11,7 @@ _ROOT = os.path.dirname(os.path.dirname(__file__))
 USERDATA = os.path.join(_ROOT, "userdata")
 _FILE = os.path.join(USERDATA, "settings.json")
 
-DEFAULTS = {"dim": 55, "bg_file": None}
+DEFAULTS = {"dim": 55, "bg_file": None, "riot_id": None, "region": None}
 ALLOWED_EXT = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
 
 
@@ -34,6 +34,18 @@ def save(patch: dict) -> dict:
 
 def set_dim(value) -> dict:
     return save({"dim": max(0, min(90, int(value)))})
+
+
+def set_target(riot_id, region=None) -> dict:
+    """Définit le compte ciblé (surcharge le .env). riot_id vide -> retour au .env."""
+    patch = {"riot_id": (riot_id or "").strip() or None}
+    if region is not None:
+        patch["region"] = (region or "").strip().lower() or None
+    return save(patch)
+
+
+def clear_target() -> dict:
+    return save({"riot_id": None, "region": None})
 
 
 def _remove_existing():
