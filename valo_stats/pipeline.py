@@ -2,31 +2,49 @@
 
 Utilisé à la fois par le CLI (dashboard.py) et par le serveur web (server.py).
 """
+import glob
 import json
 import os
-import time
 from datetime import datetime
 
 from .aggregate import aggregate
-from . import first_contact, advanced, coach, ranks
+from . import first_contact, advanced, coach, ranks, storage, paths
 
-CACHE_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cache", "matches")
-ACT_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cache", "act_totals")
+# Ancien cache fichiers (conservé pour la migration one-shot vers la base).
+CACHE_DIR = os.path.join(paths.CACHE_DIR, "matches")
 
 
-# --- cache ------------------------------------------------------------------
+# --- cache (persisté en base : SQLite en local, Postgres en prod) -----------
 def _cached(match_id: str):
-    path = os.path.join(CACHE_DIR, f"{match_id}.json")
-    if os.path.exists(path):
-        with open(path, encoding="utf-8") as f:
-            return json.load(f)
-    return None
+    return storage.get("match", match_id)
 
 
 def _store(match_id: str, detail: dict):
-    os.makedirs(CACHE_DIR, exist_ok=True)
-    with open(os.path.join(CACHE_DIR, f"{match_id}.json"), "w", encoding="utf-8") as f:
-        json.dump(detail, f)
+    storage.set("match", match_id, detail)
+
+
+def migrate_file_cache(log=lambda *_: None) -> int:
+    """Importe une seule fois les anciens matchs .cache/matches/*.json en base.
+
+    Évite de tout re-télécharger après le passage à la base. Sans effet si déjà fait.
+    """
+    if storage.get("meta", "migrated_matches"):
+        return 0
+    n = 0
+    for f in glob.glob(os.path.join(CACHE_DIR, "*.json")):
+        mid = os.path.splitext(os.path.basename(f))[0]
+        if storage.exists("match", mid):
+            continue
+        try:
+            with open(f, encoding="utf-8") as fh:
+                storage.set("match", mid, json.load(fh))
+            n += 1
+        except (OSError, ValueError):
+            continue
+    storage.set("meta", "migrated_matches", True)
+    if n:
+        log(f"  Migration : {n} match(s) importé(s) en base ({storage.backend()}).")
+    return n
 
 
 # --- helpers ----------------------------------------------------------------
@@ -71,8 +89,29 @@ def act_match_ids(client, cfg, queue="competitive"):
     return ids, act_short
 
 
-def load_details(client, ids, allow_fetch=True, log=lambda *_: None, sleep=2.2):
-    """Charge le détail des matchs : cache d'abord, réseau si autorisé."""
+def count_uncached(client, game_name, tag_line, queue="competitive",
+                   size=15, act_only=False):
+    """Nombre de parties récentes présentes côté API mais pas encore en cache.
+
+    Un seul appel léger (stored-matches, IDs) : aucune partie n'est téléchargée.
+    Sert d'indicateur « nouvelles parties depuis la dernière mise à jour ».
+    """
+    stored = client.get_stored_matches(game_name, tag_line, queue, size=size)
+    if not stored:
+        return 0
+    if act_only:
+        act = stored[0].get("meta", {}).get("season", {}).get("id")
+        stored = [m for m in stored
+                  if m.get("meta", {}).get("season", {}).get("id") == act]
+    ids = [m["meta"]["id"] for m in stored]
+    return sum(1 for mid in ids if _cached(mid) is None)
+
+
+def load_details(client, ids, allow_fetch=True, log=lambda *_: None):
+    """Charge le détail des matchs : cache d'abord, réseau si autorisé.
+
+    Le rythme des téléchargements est adaptatif (client.pace() selon le quota).
+    """
     matches, fetched, missing = [], 0, 0
     for i, mid in enumerate(ids, 1):
         detail = _cached(mid)
@@ -85,13 +124,28 @@ def load_details(client, ids, allow_fetch=True, log=lambda *_: None, sleep=2.2):
                 _store(mid, detail)
                 fetched += 1
                 log(f"  {i}/{len(ids)} téléchargé")
-                time.sleep(sleep)
+                client.pace()
             except Exception as e:  # noqa: BLE001
                 log(f"  {i}/{len(ids)} ignoré ({str(e)[:80]})")
                 missing += 1
                 continue
+        if isinstance(detail, dict):
+            detail["_mid"] = mid  # pour marquer les parties nouvellement ajoutées
         matches.append(detail)
     return matches, fetched, missing
+
+
+# --- suivi des parties fraîchement téléchargées (surlignage « nouveau ») -----
+def save_new_ids(ids):
+    storage.set("meta", "new_ids", list(ids))
+
+
+def pop_new_ids():
+    """Renvoie l'ensemble des IDs fraîchement téléchargés puis efface le marqueur."""
+    ids = storage.get("meta", "new_ids") or []
+    if ids:
+        storage.delete("meta", "new_ids")
+    return set(ids)
 
 
 # --- total de parties de l'act via MMR (sans télécharger les matchs) --------
@@ -113,30 +167,17 @@ def act_totals(client, game_name, tag_line, act_short):
     return None, None
 
 
-def _act_cache_path(region, riot_id):
-    safe = "".join(c if c.isalnum() else "_" for c in f"{region}_{riot_id}")
-    return os.path.join(ACT_DIR, f"{safe}.json")
-
-
 def _read_act_cache(region, riot_id, act_short):
     """Totaux d'act en cache, seulement s'ils concernent l'act courant."""
-    try:
-        with open(_act_cache_path(region, riot_id), encoding="utf-8") as f:
-            d = json.load(f)
-        if d.get("act") == act_short:
-            return d.get("games"), d.get("wins")
-    except (OSError, ValueError):
-        pass
+    d = storage.get("act", f"{region}_{riot_id}")
+    if isinstance(d, dict) and d.get("act") == act_short:
+        return d.get("games"), d.get("wins")
     return None, None
 
 
 def _write_act_cache(region, riot_id, act_short, games, wins):
-    try:
-        os.makedirs(ACT_DIR, exist_ok=True)
-        with open(_act_cache_path(region, riot_id), "w", encoding="utf-8") as f:
-            json.dump({"act": act_short, "games": games, "wins": wins}, f)
-    except OSError:
-        pass
+    storage.set("act", f"{region}_{riot_id}",
+                {"act": act_short, "games": games, "wins": wins})
 
 
 # --- résumé compact d'un joueur (onglet Team) -------------------------------
@@ -211,6 +252,10 @@ def build_data(client, cfg, queue=None, allow_fetch=True, want_analysis=True,
     ids, act_short = act_match_ids(client, cfg, queue)
     log(f"  Saison {act_short} ({queue}) — {len(ids)} partie(s).")
 
+    # IDs non encore en cache AVANT ce chargement = parties nouvellement ajoutées
+    # (utile seulement en mode fetch : elles seront téléchargées juste après).
+    new_ids = [mid for mid in ids if _cached(mid) is None] if allow_fetch else []
+
     matches, fetched, missing = load_details(client, ids, allow_fetch=allow_fetch, log=log)
     if not matches:
         return None, {"fetched": fetched, "missing": missing, "total": 0, "act": act_short}
@@ -251,5 +296,6 @@ def build_data(client, cfg, queue=None, allow_fetch=True, want_analysis=True,
         "agent_img": imgs,
         "analysis": analysis,
     }
-    summary = {"fetched": fetched, "missing": missing, "total": len(matches), "act": act_short}
+    summary = {"fetched": fetched, "missing": missing, "total": len(matches),
+               "act": act_short, "new_ids": new_ids}
     return data, summary

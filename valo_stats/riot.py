@@ -4,6 +4,8 @@
 Nécessite une clé gratuite obtenue sur le Discord HenrikDev.
 Elle peut évoluer ou tomber en panne sans préavis.
 """
+from __future__ import annotations
+
 import time
 
 import requests
@@ -21,6 +23,35 @@ class HenrikClient:
         self.session = requests.Session()
         # HenrikDev attend la clé dans l'en-tête Authorization.
         self.session.headers.update({"Authorization": api_key})
+        self._rl_remaining = None   # requêtes restantes (en-tête)
+        self._rl_reset_at = None    # epoch de réinitialisation du quota
+
+    def _note_rate(self, headers) -> None:
+        rem = headers.get("x-ratelimit-remaining")
+        rst = headers.get("x-ratelimit-reset")
+        try:
+            if rem is not None:
+                self._rl_remaining = int(rem)
+        except (TypeError, ValueError):
+            pass
+        try:
+            if rst is not None:
+                val = float(rst)
+                self._rl_reset_at = val if val > 1e9 else time.time() + val
+        except (TypeError, ValueError):
+            pass
+
+    def pace(self) -> None:
+        """Attend le minimum nécessaire selon le quota restant (pacing adaptatif)."""
+        now = time.time()
+        rem = self._rl_remaining
+        if rem is not None:
+            if rem <= 2 and self._rl_reset_at and self._rl_reset_at > now:
+                time.sleep(min(self._rl_reset_at - now + 0.3, 12))
+            else:
+                time.sleep(0.1)  # quota sain : délai minimal
+        else:
+            time.sleep(0.35)     # quota inconnu : on reste modéré
 
     # --- requête bas niveau avec gestion 429 / erreurs -------------------
     def _get(self, path: str, *, params: dict | None = None, tries: int = 3) -> dict:
@@ -28,6 +59,7 @@ class HenrikClient:
         for attempt in range(tries):
             resp = self.session.get(url, params=params, timeout=25)
             if resp.status_code == 200:
+                self._note_rate(resp.headers)
                 return resp.json()
             if resp.status_code == 429:  # rate limit
                 wait = int(resp.headers.get("Retry-After", "3"))

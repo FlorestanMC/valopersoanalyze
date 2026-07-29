@@ -1,0 +1,4 @@
+# Extras pour l'hébergement CONTENEURISÉ (Docker / Fly / Render) et Postgres.
+# NON nécessaires sur o2switch/cPanel : Passenger sert l'app, la base est en SQLite.
+waitress>=3.0
+psycopg[binary]>=3.1

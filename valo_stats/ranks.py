@@ -3,15 +3,14 @@
 Mappe le numéro de tier HenrikDev (`currenttier`, ex. 20 = Diamant 3) vers
 l'emblème de rang et sa couleur officielle, pour coller au thème.
 
-Mis en cache dans .cache/competitivetiers.json (les paliers changent rarement).
+Mis en cache en base (namespace meta) — les paliers changent rarement.
 """
-import json
-import os
 import time
 
 import requests
 
-_CACHE = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cache", "competitivetiers.json")
+from . import storage
+
 _TTL = 30 * 24 * 3600  # 30 jours
 _URL = "https://valorant-api.com/v1/competitivetiers"
 _UA = "valo-stats/1.0"
@@ -26,18 +25,13 @@ def _hex(rgba: str) -> str:
 
 
 def _load_raw() -> dict:
-    if os.path.exists(_CACHE) and time.time() - os.path.getmtime(_CACHE) < _TTL:
-        try:
-            with open(_CACHE, encoding="utf-8") as f:
-                return json.load(f)
-        except (OSError, ValueError):
-            pass
+    cached, ts = storage.get_with_ts("meta", "competitivetiers")
+    if cached is not None and ts and (time.time() - ts) < _TTL:
+        return cached
     r = requests.get(_URL, headers={"User-Agent": _UA}, timeout=20)
     r.raise_for_status()
     data = r.json()
-    os.makedirs(os.path.dirname(_CACHE), exist_ok=True)
-    with open(_CACHE, "w", encoding="utf-8") as f:
-        json.dump(data, f)
+    storage.set("meta", "competitivetiers", data)
     return data
 
 

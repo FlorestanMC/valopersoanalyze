@@ -3,6 +3,11 @@
 userdata/
 .cache/
 
+# Base de données locale (cache des matchs, réglages)
+valo.db
+valo.db-wal
+valo.db-shm
+
 # Sorties générées
 dashboard_*.html
 rapport_*.md

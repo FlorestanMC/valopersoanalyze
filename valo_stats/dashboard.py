@@ -83,8 +83,23 @@ def render_markdown(text: str) -> str:
 
 
 _WD_LABELS = ["L", "M", "M", "J", "V", "S", "D"]
+_WD_ABBR = ["lun.", "mar.", "mer.", "jeu.", "ven.", "sam.", "dim."]
 _MONTHS_FR = ["", "janv.", "févr.", "mars", "avr.", "mai", "juin",
               "juil.", "août", "sept.", "oct.", "nov.", "déc."]
+
+
+def _fr_daylabel(iso: str) -> str:
+    """'2026-07-29' -> 'mar. 29 juil.' (ou 'Date inconnue')."""
+    try:
+        d = datetime.strptime(iso, "%Y-%m-%d").date()
+    except (ValueError, TypeError):
+        return "Date inconnue"
+    label = f'{_WD_ABBR[d.weekday()]} {d.day} {_MONTHS_FR[d.month]}'
+    if d == date.today():
+        label += " · aujourd’hui"
+    elif d == date.today() - timedelta(days=1):
+        label += " · hier"
+    return label
 
 
 def _cal_level(count: int) -> int:
@@ -140,13 +155,16 @@ def _activity_calendar(days: dict) -> str:
         cells = []
         for d, c in col:
             if d > today:
-                cells.append('<div class="cal-cell cal-future" title="à venir"></div>')
+                cells.append('<div class="cal-cell cal-future" data-tip="à venir"></div>')
                 continue
             if c:
-                title = f'{d.strftime("%d/%m/%Y")} — {c} partie' + ("s" if c > 1 else "")
+                tip = f'{d.strftime("%d/%m/%Y")} — {c} partie' + ("s" if c > 1 else "")
             else:
-                title = f'{d.strftime("%d/%m/%Y")} — repos'
-            cells.append(f'<div class="cal-cell cal-l{_cal_level(c)}" title="{title}"></div>')
+                tip = f'{d.strftime("%d/%m/%Y")} — aucune partie'
+            cells.append(
+                f'<div class="cal-cell cal-l{_cal_level(c)}" data-tip="{_esc(tip)}" '
+                f'aria-label="{_esc(tip)}"></div>'
+            )
         cols_html.append(f'<div class="cal-col">{"".join(cells)}</div>')
 
     legend = "".join(f'<span class="cal-cell cal-l{i}"></span>' for i in range(5))
@@ -270,20 +288,39 @@ def render(data: dict) -> str:
         for m, mm in ov.get("maps", {}).items()
     )
 
-    # ---------- recent ----------
+    # ---------- recent (groupé par jour) ----------
+    new_ids = set(data.get("new_ids") or [])
+    recent = ov.get("recent", [])[:14]
+    groups = []
+    for r in recent:
+        d = r.get("date")
+        if not groups or groups[-1][0] != d:
+            groups.append((d, []))
+        groups[-1][1].append(r)
+
     rows = []
-    for r in ov.get("recent", [])[:14]:
-        cls = "win" if r["won"] else "loss"
-        chip = _chip(r["agent"], imgs.get(r["agent"], {}).get("icon"), 30)
-        hsr = f'{r["hs"]}%' if r["hs"] is not None else "—"
+    for day_iso, items in groups:
+        w = sum(1 for x in items if x["won"])
+        n = len(items)
         rows.append(
-            f'<div class="match {cls}"><span class="res">{"V" if r["won"] else "D"}</span>'
-            f'{chip}<span class="m-agent">{_esc(r["agent"])}</span>'
-            f'<span class="m-map">{_esc(r["map"])}</span>'
-            f'<span class="m-kda">{_esc(r["kda"])}</span>'
-            f'<span class="m-x">{_esc(r["acs"])}<i>ACS</i></span>'
-            f'<span class="m-x">{hsr}<i>HS</i></span></div>'
+            f'<div class="day-sep"><span class="day-lbl">{_esc(_fr_daylabel(day_iso))}</span>'
+            f'<span class="day-n">{n} partie{"s" if n > 1 else ""} · '
+            f'<b class="g">{w}V</b> <b class="l">{n - w}D</b></span></div>'
         )
+        for r in items:
+            cls = "win" if r["won"] else "loss"
+            if r.get("id") and r["id"] in new_ids:
+                cls += " match-new"
+            chip = _chip(r["agent"], imgs.get(r["agent"], {}).get("icon"), 30)
+            hsr = f'{r["hs"]}%' if r["hs"] is not None else "—"
+            rows.append(
+                f'<div class="match {cls}"><span class="res">{"V" if r["won"] else "D"}</span>'
+                f'{chip}<span class="m-agent">{_esc(r["agent"])}</span>'
+                f'<span class="m-map">{_esc(r["map"])}</span>'
+                f'<span class="m-kda">{_esc(r["kda"])}</span>'
+                f'<span class="m-x">{_esc(r["acs"])}<i>ACS</i></span>'
+                f'<span class="m-x">{hsr}<i>HS</i></span></div>'
+            )
     matches_html = "".join(rows)
 
     # ---------- agents ----------
@@ -538,7 +575,14 @@ body{position:relative;overflow-x:hidden;background:transparent}
 .chip-ph{display:grid;place-items:center;font-weight:800;color:var(--muted)}
 
 /* recent */
-.cols{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+.ov-left{display:flex;flex-direction:column;gap:16px}
+.day-sep{display:flex;align-items:baseline;justify-content:space-between;gap:10px;
+ margin:14px 0 6px;padding:0 4px 5px;border-bottom:1px solid var(--brd)}
+.day-sep:first-child{margin-top:0}
+.day-lbl{font-size:12px;font-weight:800;letter-spacing:.02em;text-transform:capitalize}
+.day-n{font-size:11px;color:var(--muted);font-weight:700;white-space:nowrap}
+.day-n .g{color:var(--mint)}.day-n .l{color:var(--red)}
 .match{display:grid;grid-template-columns:26px 30px 1fr 1fr auto auto;align-items:center;gap:12px;
  padding:9px 8px;border-radius:11px;border-left:3px solid transparent}
 .match.win{border-left-color:var(--mint);background:linear-gradient(90deg,rgba(55,224,166,.07),transparent 40%)}
@@ -546,23 +590,28 @@ body{position:relative;overflow-x:hidden;background:transparent}
 .res{width:24px;height:24px;border-radius:7px;display:grid;place-items:center;font-weight:900;font-size:12px}
 .match.win .res{background:rgba(55,224,166,.2);color:var(--mint)}
 .match.loss .res{background:rgba(255,70,85,.2);color:var(--red)}
+.match.match-new .res{animation:rnewpop 1.6s ease-in-out infinite}
+.match.win.match-new{background:linear-gradient(90deg,rgba(55,224,166,.22),transparent 55%)}
+.match.win.match-new .res{box-shadow:0 0 0 2px #37E0A6,0 0 12px rgba(55,224,166,.95)}
+.match.loss.match-new{background:linear-gradient(90deg,rgba(255,45,64,.22),transparent 55%)}
+.match.loss.match-new .res{box-shadow:0 0 0 2px #FF2D40,0 0 12px rgba(255,45,64,.95)}
 .m-agent{font-weight:800;font-size:14px}.m-map{color:var(--muted);font-size:14px}
 .m-kda{font-variant-numeric:tabular-nums;font-size:14px}
 .m-x{font-weight:800;font-size:14px;text-align:right}
 .m-x i{display:block;font-style:normal;font-size:10px;color:var(--muted);font-weight:700}
 
 /* calendrier d'activité (heatmap) */
-.cal-meta{font-size:12.5px;color:var(--muted);margin:0 0 12px;font-weight:700}
-.cal-scroll{overflow-x:auto;padding-bottom:4px}
+.cal-meta{font-size:12px;color:var(--muted);margin:0 0 10px;font-weight:700}
+.cal-scroll{overflow-x:auto;padding-bottom:2px}
 .cal{display:inline-block}
-.cal-top{display:flex;gap:3px;margin:0 0 5px 22px;height:13px}
-.cal-m{flex:0 0 13px;min-width:0;overflow:visible;white-space:nowrap;font-size:10px;color:var(--muted)}
+.cal-top{display:flex;gap:2px;margin:0 0 4px 18px;height:12px}
+.cal-m{flex:0 0 11px;min-width:0;overflow:visible;white-space:nowrap;font-size:9px;color:var(--muted)}
 .cal-main{display:flex}
-.cal-wd{display:flex;flex-direction:column;gap:3px;width:16px;margin-right:6px}
-.cal-wd span{height:13px;line-height:13px;font-size:9px;color:var(--muted);text-align:center}
-.cal-cols{display:flex;gap:3px}
-.cal-col{display:flex;flex-direction:column;gap:3px}
-.cal-cell{width:13px;height:13px;border-radius:3px;background:rgba(255,255,255,.06)}
+.cal-wd{display:flex;flex-direction:column;gap:2px;width:14px;margin-right:4px}
+.cal-wd span{height:11px;line-height:11px;font-size:8px;color:var(--muted);text-align:center}
+.cal-cols{display:flex;gap:2px}
+.cal-col{display:flex;flex-direction:column;gap:2px}
+.cal-cell{width:11px;height:11px;border-radius:2px;background:rgba(255,255,255,.06)}
 .cal-l0{background:rgba(255,255,255,.06)}
 .cal-l1{background:rgba(55,224,166,.28)}
 .cal-l2{background:rgba(55,224,166,.5)}
@@ -571,6 +620,23 @@ body{position:relative;overflow-x:hidden;background:transparent}
 .cal-future{background:rgba(255,255,255,.025)}
 .cal-legend{display:flex;align-items:center;gap:4px;margin-top:12px;font-size:11px;color:var(--muted)}
 .cal-legend .cal-cell{width:12px;height:12px}
+.cal-cell[data-tip]{cursor:default}
+.cal-cell[data-tip]:hover{outline:1.5px solid rgba(255,255,255,.6);outline-offset:1px}
+
+/* tooltip flottant */
+.tip{position:fixed;z-index:9999;pointer-events:none;left:0;top:0;
+ padding:6px 10px;border-radius:9px;font-size:12px;font-weight:700;white-space:nowrap;
+ background:rgba(12,10,22,.96);color:var(--ink);border:1px solid var(--brd);
+ box-shadow:0 8px 24px rgba(0,0,0,.5);opacity:0;transform:translateY(3px);transition:opacity .12s,transform .12s}
+.tip.show{opacity:1;transform:translateY(0)}
+
+/* indicateur discret « nouvelles parties » : petit point rouge */
+.refresh,.car-btn{position:relative}
+.refresh.has-new::after,.car-btn.tm-hasnew::after{content:"";position:absolute;top:-4px;right:-4px;
+ width:9px;height:9px;border-radius:50%;background:var(--red);border:2px solid var(--bg);
+ box-shadow:0 0 7px rgba(255,70,85,.85)}
+.tm-dot{position:absolute;top:9px;right:9px;width:9px;height:9px;border-radius:50%;z-index:3;
+ background:var(--red);box-shadow:0 0 7px rgba(255,70,85,.9),0 0 0 3px rgba(255,70,85,.18)}
 
 /* agents grid */
 .agrid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
@@ -716,6 +782,10 @@ body{position:relative;overflow-x:hidden;background:transparent}
 .tm-form{display:flex;gap:4px}
 .tm-form .r{width:16px;height:16px;border-radius:5px;font-size:10px;font-weight:900;display:grid;place-items:center;color:#0a0a12}
 .tm-form .r.w{background:#7CF6C6}.tm-form .r.l{background:#FF6b78}
+.tm-form .r.rnew{animation:rnewpop 1.6s ease-in-out infinite}
+.tm-form .r.w.rnew{box-shadow:0 0 0 2px var(--bg),0 0 0 3px #37E0A6,0 0 9px rgba(55,224,166,.95)}
+.tm-form .r.l.rnew{box-shadow:0 0 0 2px var(--bg),0 0 0 3px #FF2D40,0 0 9px rgba(255,45,64,.95)}
+@keyframes rnewpop{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}
 .tm-empty{color:var(--muted);font-size:13px;padding:14px 0}
 .tm-cfg{display:grid;gap:8px;margin-bottom:14px}
 .tm-row{display:flex;gap:8px;align-items:center}
@@ -736,6 +806,36 @@ _JS = """
    t.classList.add('active');
    document.getElementById('panel-'+t.dataset.tab).classList.add('show');
  })});
+ // Tooltip flottant (cases du calendrier, etc.)
+ (function(){
+   var tip=document.createElement('div'); tip.className='tip'; tip.setAttribute('role','tooltip');
+   document.body.appendChild(tip); var on=false;
+   document.addEventListener('mouseover',function(e){
+     var el=e.target.closest('[data-tip]'); if(!el)return;
+     tip.textContent=el.getAttribute('data-tip'); tip.classList.add('show'); on=true;
+   });
+   document.addEventListener('mousemove',function(e){
+     if(!on)return;
+     var x=e.clientX+12, y=e.clientY+14;
+     if(x+tip.offsetWidth>window.innerWidth-8) x=e.clientX-tip.offsetWidth-12;
+     tip.style.left=x+'px'; tip.style.top=y+'px';
+   });
+   document.addEventListener('mouseout',function(e){
+     if(e.target.closest('[data-tip]')){ tip.classList.remove('show'); on=false; }
+   });
+ })();
+
+ // Indicateur « nouvelles parties depuis la dernière MAJ » (Vue d'ensemble) : point rouge
+ (function(){
+   var rb=document.getElementById('refresh'); if(!rb)return;
+   fetch('/api/updates?queue='+QUEUE).then(function(r){return r.json()}).then(function(j){
+     if(j&&j.new>0){
+       rb.classList.add('has-new');
+       rb.title=j.new+' nouvelle(s) partie'+(j.new>1?'s':'')+' depuis la dernière mise à jour';
+     }
+   }).catch(function(){});
+ })();
+
  var btn=document.getElementById('refresh');
  if(btn){var base=btn.textContent;btn.addEventListener('click',function(){
    btn.disabled=true;btn.textContent='⏳ Mise a jour...';
@@ -1254,6 +1354,7 @@ _JS = """
  if(!root) return;
  var REGIONS=['eu','na','ap','kr','latam','br'];
  var team=[], sums={}, loading=false, opened=false, teamName='', anaHtml='', analyzing=false;
+ var updates={}, updTotal=0, justNew={};
 
  function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
  function api(u,o){return fetch(u,o).then(function(r){return r.json();});}
@@ -1264,7 +1365,16 @@ _JS = """
      render();
      // auto-charge le cache (rapide) pour les emplacements configurés
      team.forEach(function(p,i){ refreshSlot(i,false); });
+     checkUpdates();
    });
+ }
+
+ function checkUpdates(){
+   if(!team.length) return;
+   api('/api/team/updates?queue='+QUEUE).then(function(j){
+     updates={}; (j.slots||[]).forEach(function(s){ updates[s.slot]=s.new; });
+     updTotal=j.total||0; render();
+   }).catch(function(){});
  }
 
  function refreshSlot(i,fetchNet){
@@ -1276,10 +1386,12 @@ _JS = """
  }
 
  function updateAll(){
-   if(loading) return; loading=true; render();
+   if(loading) return; loading=true;
+   var pending={}; team.forEach(function(p,i){ if(updates[i]>0) pending[i]=updates[i]; });
+   render();
    var chain=Promise.resolve();
    team.forEach(function(p,i){ chain=chain.then(function(){ return refreshSlot(i,true); }); });
-   chain.then(function(){ loading=false; render(); });
+   chain.then(function(){ loading=false; justNew=pending; updates={}; updTotal=0; render(); checkUpdates(); });
  }
 
  function saveCfg(){
@@ -1294,7 +1406,7 @@ _JS = """
    api('/api/team/config',{method:'POST',headers:{'Content-Type':'application/json'},
      body:JSON.stringify({players:players,name:name})}).then(function(j){
      if(j.error){msg.textContent='⚠ '+j.error;return;}
-     team=j.team||[]; teamName=j.team_name||''; sums={}; msg.textContent='✓ Équipe enregistrée';
+     team=j.team||[]; teamName=j.team_name||''; sums={}; justNew={}; msg.textContent='✓ Équipe enregistrée';
      render(); team.forEach(function(p,i){ refreshSlot(i,false); });
    }).catch(function(){msg.textContent='⚠ Serveur requis';});
  }
@@ -1329,9 +1441,10 @@ _JS = """
  }
  function cell(l,v){return '<div class="s"><div class="l">'+l+'</div><div class="v">'+v+'</div></div>';}
 
- function card(p,s){
+ function card(p,s,i){
    var bg=(s&&s.summary&&s.summary.agent_bg)?'<div class="bg" style="background-image:url('+esc(s.summary.agent_bg)+')"></div>':'';
-   var head='<div class="tm-top">'+bg+'<div><div class="tm-name">'+esc(p.riot_id)+'</div>'
+   var nb=(i!=null&&updates[i]>0)?'<span class="tm-dot" title="'+updates[i]+' nouvelle(s) partie(s) depuis la dernière mise à jour"></span>':'';
+   var head=nb+'<div class="tm-top">'+bg+'<div><div class="tm-name">'+esc(p.riot_id)+'</div>'
      +'<div class="tm-sub">'+esc(p.region.toUpperCase())+'</div></div>';
    if(s&&s.loading){ return '<div class="tm-card">'+head+'<div class="tm-rank">⏳</div></div>'
      +'<div class="tm-empty">Chargement…</div></div>'; }
@@ -1352,7 +1465,10 @@ _JS = """
    var ags=(d.top_agents||[]).map(function(a){
      var ic=a.icon?'<img src="'+esc(a.icon)+'">':'';
      return '<span class="tm-ag">'+ic+esc(a.name)+' <b style="color:var(--muted)">'+a.games+'</b></span>';}).join('');
-   var form=(d.recent||[]).map(function(r){return '<div class="r '+(r.won?'w':'l')+'">'+(r.won?'V':'D')+'</div>';}).join('');
+   var nnew=(i!=null&&justNew[i])?justNew[i]:0;
+   var form=(d.recent||[]).map(function(r,idx){
+     return '<div class="r '+(r.won?'w':'l')+(idx<nnew?' rnew':'')+'"'
+       +(idx<nnew?' title="Nouvelle partie"':'')+'>'+(r.won?'V':'D')+'</div>';}).join('');
    var hasAct=(d.act_games!=null);
    var gGames=hasAct?d.act_games:d.games;
    var gWins=(d.act_wins!=null)?d.act_wins:d.wins;
@@ -1375,7 +1491,7 @@ _JS = """
      +'<button class="car-btn ghost" id="tm-toggle" type="button" style="padding:9px 14px">⚙ Configurer</button>'
      +'<button class="car-btn ghost" id="tm-analyze" type="button" style="padding:9px 16px"'+((analyzing||!team.length)?' disabled':'')+'>'
      +(analyzing?'Analyse en cours…':'✦ Analyse IA')+'</button>'
-     +'<button class="car-btn primary" id="tm-update" type="button" style="padding:9px 16px"'+(loading?' disabled':'')+'>'
+     +'<button class="car-btn primary'+(updTotal>0?' tm-hasnew':'')+'" id="tm-update" type="button" style="padding:9px 16px"'+(loading?' disabled':'')+'>'
      +(loading?'⏳ Mise à jour…':'↻ Mettre à jour')+'</button></div></div>';
    if(showCfg||!team.length){
      h+='<label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:.14em;color:var(--muted);margin:2px 0 6px;font-weight:800">Nom de l’équipe</label>'
@@ -1395,7 +1511,7 @@ _JS = """
    }
    if(team.length){
      h+=synthesis();
-     h+='<div class="tm-grid">'+team.map(function(p,i){return card(p,sums[i]);}).join('')+'</div>';
+     h+='<div class="tm-grid">'+team.map(function(p,i){return card(p,sums[i],i);}).join('')+'</div>';
    }
    if(analyzing||anaHtml){
      h+='<div class="glass card section" style="margin-top:14px"><h2 style="display:flex;align-items:center;gap:8px">'
@@ -1460,9 +1576,11 @@ _PAGE = """<!doctype html>
      </div>
    </div>
    <div class="glass card section"><div class="kpis">{kpis}</div></div>
-   <div class="glass card section"><h2>Jours de jeu · saison {act}</h2>{calendar}</div>
    <div class="cols section">
-     <div class="glass card"><h2>Win rate par carte</h2>{map_bars}</div>
+     <div class="ov-left">
+       <div class="glass card"><h2>Win rate par carte</h2>{map_bars}</div>
+       <div class="glass card"><h2>Jours de jeu · saison {act}</h2>{calendar}</div>
+     </div>
      <div class="glass card"><h2>Dernières parties</h2>{matches}</div>
    </div>
    <div class="glass card section"><h2>Analyse coaching (Claude)</h2>{analysis}</div>

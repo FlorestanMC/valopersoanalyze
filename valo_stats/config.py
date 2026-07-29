@@ -73,7 +73,7 @@ def load_config() -> Config:
 
     return Config(
         henrik_api_key=req("HENRIK_API_KEY"),
-        anthropic_api_key=req("ANTHROPIC_API_KEY"),
+        anthropic_api_key=os.getenv("ANTHROPIC_API_KEY", "").strip(),
         riot_id=riot_id,
         region=region,
         queue=os.getenv("QUEUE", "competitive").strip().lower(),

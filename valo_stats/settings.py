@@ -7,29 +7,37 @@ import glob
 import json
 import os
 
-_ROOT = os.path.dirname(os.path.dirname(__file__))
-USERDATA = os.path.join(_ROOT, "userdata")
-_FILE = os.path.join(USERDATA, "settings.json")
+from . import storage, paths
+
+USERDATA = paths.USERDATA_DIR
+_FILE = os.path.join(USERDATA, "settings.json")  # ancien fichier (migration)
 
 DEFAULTS = {"dim": 55, "bg_file": None, "riot_id": None, "region": None,
             "team": [], "team_name": None}
 ALLOWED_EXT = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
 
 
-def load() -> dict:
+def _migrate_file():
+    """Importe une seule fois l'ancien userdata/settings.json en base."""
+    if storage.exists("settings", "main"):
+        return
     try:
         with open(_FILE, encoding="utf-8") as f:
-            return {**DEFAULTS, **json.load(f)}
+            storage.set("settings", "main", {**DEFAULTS, **json.load(f)})
     except (OSError, ValueError):
-        return dict(DEFAULTS)
+        pass
+
+
+def load() -> dict:
+    _migrate_file()
+    data = storage.get("settings", "main") or {}
+    return {**DEFAULTS, **data}
 
 
 def save(patch: dict) -> dict:
-    os.makedirs(USERDATA, exist_ok=True)
     cur = load()
     cur.update(patch)
-    with open(_FILE, "w", encoding="utf-8") as f:
-        json.dump(cur, f, indent=2)
+    storage.set("settings", "main", cur)
     return cur
 
 

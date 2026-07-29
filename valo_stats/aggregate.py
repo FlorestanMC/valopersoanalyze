@@ -90,7 +90,8 @@ def aggregate(matches, puuid, queue_filter="competitive"):
             by_day[day] += 1
 
         recent.append({
-            "agent": agent, "map": map_name, "won": won,
+            "agent": agent, "map": map_name, "won": won, "date": day,
+            "id": match.get("_mid"),
             "kda": f"{k}/{d}/{a}",
             "acs": round(score / rounds) if rounds else 0,
             "hs": round(hs, 1) if hs is not None else None,

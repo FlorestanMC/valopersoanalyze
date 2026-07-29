@@ -8,7 +8,9 @@ Usage : python server.py   puis ouvrir http://127.0.0.1:8770
 """
 import os
 import sys
+import time
 import webbrowser
+from concurrent.futures import ThreadPoolExecutor
 
 try:
     import truststore
@@ -23,13 +25,34 @@ except ImportError:
 
 from valo_stats.config import load_config
 from valo_stats.riot import HenrikClient, RiotError
-from valo_stats import pipeline, dashboard, settings, team_coach
+from valo_stats import pipeline, dashboard, settings, team_coach, storage
+
+# Migration one-shot des anciens caches fichiers vers la base (sans effet si déjà fait).
+try:
+    pipeline.migrate_file_cache(log=lambda m: print(m))
+except Exception as _e:  # noqa: BLE001
+    print(f"[migration] ignorée : {_e}")
 
 PORT = 8770
 QUEUES = {"competitive", "premier"}
 REGIONS = {"na", "eu", "ap", "kr", "latam", "br"}
 
 app = Flask(__name__)
+
+# Protection par mot de passe (auth HTTP basique) : active seulement si
+# APP_PASSWORD est défini (donc jamais en local par défaut, requis en ligne).
+APP_PASSWORD = os.environ.get("APP_PASSWORD", "").strip()
+
+
+@app.before_request
+def _require_password():
+    if not APP_PASSWORD:
+        return None
+    auth = request.authorization
+    if not auth or auth.password != APP_PASSWORD:
+        return ("Accès protégé.", 401,
+                {"WWW-Authenticate": 'Basic realm="Valo Stats"'})
+    return None
 
 
 def _ctx():
@@ -41,6 +64,26 @@ def _ctx():
 def _queue():
     q = (request.args.get("queue") or "competitive").lower()
     return q if q in QUEUES else "competitive"
+
+
+# Cache mémoire court (TTL) pour les checks « nouvelles parties » : évite de
+# retaper l'API HenrikDev à chaque ouverture d'onglet.
+_UPD_TTL = 60
+_upd_cache = {}
+
+
+def _cached_updates(key, producer):
+    now = time.time()
+    hit = _upd_cache.get(key)
+    if hit and now - hit[0] < _UPD_TTL:
+        return hit[1]
+    val = producer()
+    _upd_cache[key] = (now, val)
+    return val
+
+
+def _invalidate_updates():
+    _upd_cache.clear()
 
 
 def _empty_page(queue):
@@ -91,6 +134,8 @@ def index():
                                   allow_fetch=False, want_analysis=False)
     if data is None:
         return _empty_page(q)
+    # Parties fraîchement téléchargées à la dernière MAJ (surlignées une fois).
+    data["new_ids"] = list(pipeline.pop_new_ids())
     return dashboard.render(_with_background(data))
 
 
@@ -134,9 +179,56 @@ def refresh():
     cfg, client = _ctx()
     _, summary = pipeline.build_data(client, cfg, queue=_queue(),
                                      allow_fetch=True, want_analysis=False)
+    pipeline.save_new_ids(summary.get("new_ids") or [])
+    _invalidate_updates()
     return jsonify(fetched=summary.get("fetched", 0),
                    missing=summary.get("missing", 0),
                    total=summary.get("total", 0))
+
+
+@app.get("/api/updates")
+def updates():
+    """Nb de nouvelles parties du compte ciblé (act) non encore téléchargées."""
+    cfg, client = _ctx()
+    q = _queue()
+
+    def produce():
+        try:
+            return {"new": pipeline.count_uncached(client, cfg.game_name, cfg.tag_line,
+                                                   q, size=50, act_only=True)}
+        except RiotError as e:
+            return {"new": 0, "error": str(e)}
+
+    return jsonify(_cached_updates(("ov", cfg.riot_id, cfg.region, q), produce))
+
+
+@app.get("/api/team/updates")
+def team_updates():
+    """Nb de nouvelles parties par joueur (15 récentes) — appels parallélisés."""
+    cfg = load_config()
+    q = _queue()
+    team = settings.load().get("team", [])
+    key = ("team", q, tuple((p["riot_id"], p["region"]) for p in team))
+
+    def produce():
+        def one(item):
+            i, p = item
+            game_name, tag_line = p["riot_id"].split("#", 1)
+            client = HenrikClient(cfg.henrik_api_key, p["region"])
+            try:
+                new = pipeline.count_uncached(client, game_name, tag_line, q, size=15)
+            except RiotError:
+                new = 0
+            return {"slot": i, "new": new}
+
+        if not team:
+            return {"slots": [], "total": 0}
+        with ThreadPoolExecutor(max_workers=min(4, len(team))) as ex:
+            slots = list(ex.map(one, list(enumerate(team))))
+        slots.sort(key=lambda s: s["slot"])
+        return {"slots": slots, "total": sum(s["new"] for s in slots)}
+
+    return jsonify(_cached_updates(key, produce))
 
 
 @app.get("/api/team")
@@ -236,6 +328,8 @@ def team_refresh():
                                           count=15, allow_fetch=allow_fetch)
     except RiotError as e:
         return jsonify(riot_id=p["riot_id"], region=p["region"], error=str(e)), 200
+    if allow_fetch:
+        _invalidate_updates()
     return jsonify(riot_id=p["riot_id"], region=p["region"], summary=summary)
 
 
@@ -253,10 +347,10 @@ def set_target():
 
 
 if __name__ == "__main__":
-    url = f"http://127.0.0.1:{PORT}"
-    print(f"→ Dashboard Valorant sur {url}  (Ctrl+C pour arrêter)")
+    port = int(os.environ.get("PORT", PORT))
+    print(f"→ Dashboard Valorant sur http://127.0.0.1:{port}  (Ctrl+C pour arrêter)")
     try:
-        webbrowser.open(url)
+        webbrowser.open(f"http://127.0.0.1:{port}")
     except Exception:  # noqa: BLE001
         pass
-    app.run(host="127.0.0.1", port=PORT, debug=False)
+    app.run(host="127.0.0.1", port=port, debug=False)
