@@ -11,7 +11,8 @@ _ROOT = os.path.dirname(os.path.dirname(__file__))
 USERDATA = os.path.join(_ROOT, "userdata")
 _FILE = os.path.join(USERDATA, "settings.json")
 
-DEFAULTS = {"dim": 55, "bg_file": None, "riot_id": None, "region": None, "team": []}
+DEFAULTS = {"dim": 55, "bg_file": None, "riot_id": None, "region": None,
+            "team": [], "team_name": None}
 ALLOWED_EXT = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
 
 
@@ -60,6 +61,12 @@ def set_team(players) -> dict:
         if "#" in rid:
             clean.append({"riot_id": rid, "region": reg})
     return save({"team": clean})
+
+
+def set_team_name(name) -> dict:
+    """Nom d'équipe affiché dans l'onglet Team. Vide -> retour au libellé par défaut."""
+    clean = (name or "").strip()[:40] or None
+    return save({"team_name": clean})
 
 
 def _remove_existing():

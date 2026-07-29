@@ -23,7 +23,7 @@ except ImportError:
 
 from valo_stats.config import load_config
 from valo_stats.riot import HenrikClient, RiotError
-from valo_stats import pipeline, dashboard, settings
+from valo_stats import pipeline, dashboard, settings, team_coach
 
 PORT = 8770
 QUEUES = {"competitive", "premier"}
@@ -141,7 +141,8 @@ def refresh():
 
 @app.get("/api/team")
 def team_get():
-    return jsonify(team=settings.load().get("team", []))
+    s = settings.load()
+    return jsonify(team=s.get("team", []), team_name=s.get("team_name"))
 
 
 @app.post("/api/team/config")
@@ -159,7 +160,59 @@ def team_config():
             return jsonify(error=f"Région invalide : {reg}"), 400
         clean.append({"riot_id": rid, "region": reg})
     settings.set_team(clean)
-    return jsonify(ok=True, team=clean)
+    if "name" in data:
+        settings.set_team_name(data.get("name"))
+    s = settings.load()
+    return jsonify(ok=True, team=clean, team_name=s.get("team_name"))
+
+
+@app.post("/api/team/analyze")
+def team_analyze():
+    """Analyse d'équipe via DeepSeek, à partir des stats en cache (pas de fetch)."""
+    cfg = load_config()
+    if not cfg.deepseek_api_key:
+        return jsonify(error="Clé DeepSeek absente : ajoute DEEPSEEK_API_KEY dans .env."), 400
+
+    s = settings.load()
+    team = s.get("team", [])
+    if not team:
+        return jsonify(error="Aucune équipe configurée."), 400
+
+    players = []
+    for p in team:
+        game_name, tag_line = p["riot_id"].split("#", 1)
+        client = HenrikClient(cfg.henrik_api_key, p["region"])
+        try:
+            summary = pipeline.player_summary(client, game_name, tag_line, _queue(),
+                                              count=15, allow_fetch=False)
+        except RiotError as e:
+            players.append({"riot_id": p["riot_id"], "erreur": str(e)})
+            continue
+        if not summary.get("games"):
+            players.append({"riot_id": p["riot_id"],
+                            "note": "aucune donnée en cache — clique « Mettre à jour »"})
+            continue
+        players.append({
+            "riot_id": p["riot_id"],
+            "rang": summary.get("rank"),
+            "parties_act": summary.get("act_games"),
+            "parties_recentes": summary.get("games"),
+            "win_rate_pct": summary.get("win_rate"),
+            "kd": summary.get("kd"),
+            "acs": summary.get("avg_acs"),
+            "kast_pct": summary.get("kast"),
+            "hs_pct": summary.get("avg_hs_pct"),
+            "fcs_pct": summary.get("fcs"),
+            "agents": [{"nom": a.get("name"), "parties": a.get("games")}
+                       for a in (summary.get("top_agents") or [])],
+        })
+
+    try:
+        analysis = team_coach.analyze(cfg.deepseek_api_key, cfg.deepseek_model,
+                                      s.get("team_name"), players)
+    except Exception as e:  # noqa: BLE001
+        return jsonify(error=str(e)[:400]), 502
+    return jsonify(analysis=dashboard.render_markdown(analysis))
 
 
 @app.post("/api/team/refresh")

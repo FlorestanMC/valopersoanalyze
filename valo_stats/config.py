@@ -19,6 +19,8 @@ class Config:
     queue: str            # competitive / unrated / spikerush / deathmatch / all
     count: int            # nombre de parties à analyser
     anthropic_model: str
+    deepseek_api_key: str = ""     # facultatif : analyse d'équipe (onglet Team)
+    deepseek_model: str = "deepseek-chat"
 
     @property
     def game_name(self) -> str:
@@ -77,4 +79,6 @@ def load_config() -> Config:
         queue=os.getenv("QUEUE", "competitive").strip().lower(),
         count=int(os.getenv("COUNT", "10")),
         anthropic_model=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-5").strip(),
+        deepseek_api_key=os.getenv("DEEPSEEK_API_KEY", "").strip(),
+        deepseek_model=os.getenv("DEEPSEEK_MODEL", "deepseek-chat").strip(),
     )

@@ -6,7 +6,7 @@ Document autonome (images d'agents/armes chargées depuis valorant-api.com).
 """
 import html
 import re
-from datetime import datetime
+from datetime import datetime, date, timedelta
 
 INK = "#F2F0EA"
 RED = "#FF4655"
@@ -36,26 +36,130 @@ def _inline(line: str) -> str:
     )
 
 
+_OL_RE = re.compile(r"^\d+[.)]\s+")
+
+
 def _md_to_html(text: str) -> str:
     if not text:
         return ""
-    out, in_list = [], False
+    out, mode = [], None  # mode : None | "ul" | "ol"
+
+    def close():
+        nonlocal mode
+        if mode:
+            out.append(f"</{mode}>")
+            mode = None
+
+    def open_list(kind):
+        nonlocal mode
+        if mode != kind:
+            close()
+            out.append(f"<{kind}>")
+            mode = kind
+
     for raw in text.splitlines():
         s = raw.strip()
-        if s.startswith(("- ", "• ", "* ")):
-            if not in_list:
-                out.append("<ul>")
-                in_list = True
+        if not s:
+            close()
+        elif s.startswith("#"):
+            close()
+            out.append(f"<p><strong>{_esc(s.lstrip('#').strip())}</strong></p>")
+        elif s.startswith(("- ", "• ", "* ")):
+            open_list("ul")
             out.append(f"<li>{_inline(s[2:])}</li>")
+        elif _OL_RE.match(s):
+            open_list("ol")
+            out.append(f"<li>{_inline(_OL_RE.sub('', s))}</li>")
         else:
-            if in_list:
-                out.append("</ul>")
-                in_list = False
-            if s:
-                out.append(f"<p>{_inline(s)}</p>")
-    if in_list:
-        out.append("</ul>")
+            close()
+            out.append(f"<p>{_inline(s)}</p>")
+    close()
     return "\n".join(out)
+
+
+def render_markdown(text: str) -> str:
+    """Convertit un texte Markdown léger en HTML (titres, listes, gras)."""
+    return _md_to_html(text)
+
+
+_WD_LABELS = ["L", "M", "M", "J", "V", "S", "D"]
+_MONTHS_FR = ["", "janv.", "févr.", "mars", "avr.", "mai", "juin",
+              "juil.", "août", "sept.", "oct.", "nov.", "déc."]
+
+
+def _cal_level(count: int) -> int:
+    if count <= 0:
+        return 0
+    if count <= 2:
+        return 1
+    if count <= 4:
+        return 2
+    if count <= 6:
+        return 3
+    return 4
+
+
+def _activity_calendar(days: dict) -> str:
+    """Heatmap type « contributions » : une case par jour, intensité = nb de parties."""
+    counts = {}
+    for k, v in (days or {}).items():
+        try:
+            counts[datetime.strptime(k, "%Y-%m-%d").date()] = int(v)
+        except (ValueError, TypeError):
+            continue
+    if not counts:
+        return '<p class="muted">Aucune activité datée pour cette saison.</p>'
+
+    today = date.today()
+    start = min(counts)
+    end = max(max(counts), today)
+    start -= timedelta(days=start.weekday())  # remonter au lundi
+
+    weeks, cur = [], start
+    while cur <= end:
+        col = []
+        for _ in range(7):
+            col.append((cur, counts.get(cur, 0)))
+            cur += timedelta(days=1)
+        weeks.append(col)
+
+    last_m = None
+    months_cells = []
+    for col in weeks:
+        m = col[0][0].month
+        months_cells.append(f'<span class="cal-m">{_MONTHS_FR[m] if m != last_m else ""}</span>')
+        last_m = m
+    months_html = "".join(months_cells)
+
+    wd_html = "".join(
+        f'<span>{_WD_LABELS[i] if i in (0, 2, 4, 6) else ""}</span>' for i in range(7)
+    )
+
+    cols_html = []
+    for col in weeks:
+        cells = []
+        for d, c in col:
+            if d > today:
+                cells.append('<div class="cal-cell cal-future" title="à venir"></div>')
+                continue
+            if c:
+                title = f'{d.strftime("%d/%m/%Y")} — {c} partie' + ("s" if c > 1 else "")
+            else:
+                title = f'{d.strftime("%d/%m/%Y")} — repos'
+            cells.append(f'<div class="cal-cell cal-l{_cal_level(c)}" title="{title}"></div>')
+        cols_html.append(f'<div class="cal-col">{"".join(cells)}</div>')
+
+    legend = "".join(f'<span class="cal-cell cal-l{i}"></span>' for i in range(5))
+    total, active = sum(counts.values()), len(counts)
+    return (
+        f'<div class="cal-meta">{active} jour(s) joué(s) · {total} partie(s) sur la saison</div>'
+        f'<div class="cal-scroll"><div class="cal">'
+        f'<div class="cal-top">{months_html}</div>'
+        f'<div class="cal-main"><div class="cal-wd">{wd_html}</div>'
+        f'<div class="cal-cols">{"".join(cols_html)}</div></div>'
+        f'<div class="cal-legend"><span>Moins</span>{legend}<span>Plus</span></div>'
+        f'</div></div>'
+    )
 
 
 # --- composants -------------------------------------------------------------
@@ -297,6 +401,7 @@ def render(data: dict) -> str:
         wins=ov.get("wins", 0), losses=ov.get("losses", 0), games=ov["games"],
         rwr=(f"{rwr} %" if rwr is not None else "n/d"), round_split=round_split,
         rw=rw, rl=rl, kpis=kpis, map_bars=map_bars, matches=matches_html,
+        calendar=_activity_calendar(ov.get("days", {})),
         agents=agents_html, weapons=weapons_html, precision=precision_html,
         fk=fk, fd=fd, donut=donut, fcs_gauge=fcs_gauge, fc_bars=fc_bars_html,
         fc_weapons=fc_weapons_html,
@@ -446,6 +551,27 @@ body{position:relative;overflow-x:hidden;background:transparent}
 .m-x{font-weight:800;font-size:14px;text-align:right}
 .m-x i{display:block;font-style:normal;font-size:10px;color:var(--muted);font-weight:700}
 
+/* calendrier d'activité (heatmap) */
+.cal-meta{font-size:12.5px;color:var(--muted);margin:0 0 12px;font-weight:700}
+.cal-scroll{overflow-x:auto;padding-bottom:4px}
+.cal{display:inline-block}
+.cal-top{display:flex;gap:3px;margin:0 0 5px 22px;height:13px}
+.cal-m{flex:0 0 13px;min-width:0;overflow:visible;white-space:nowrap;font-size:10px;color:var(--muted)}
+.cal-main{display:flex}
+.cal-wd{display:flex;flex-direction:column;gap:3px;width:16px;margin-right:6px}
+.cal-wd span{height:13px;line-height:13px;font-size:9px;color:var(--muted);text-align:center}
+.cal-cols{display:flex;gap:3px}
+.cal-col{display:flex;flex-direction:column;gap:3px}
+.cal-cell{width:13px;height:13px;border-radius:3px;background:rgba(255,255,255,.06)}
+.cal-l0{background:rgba(255,255,255,.06)}
+.cal-l1{background:rgba(55,224,166,.28)}
+.cal-l2{background:rgba(55,224,166,.5)}
+.cal-l3{background:rgba(55,224,166,.78)}
+.cal-l4{background:var(--mint)}
+.cal-future{background:rgba(255,255,255,.025)}
+.cal-legend{display:flex;align-items:center;gap:4px;margin-top:12px;font-size:11px;color:var(--muted)}
+.cal-legend .cal-cell{width:12px;height:12px}
+
 /* agents grid */
 .agrid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
 .acard{position:relative;overflow:hidden;padding:16px;border-radius:18px;min-height:172px;
@@ -491,7 +617,7 @@ body{position:relative;overflow-x:hidden;background:transparent}
 .fc-note{margin-top:16px;font-size:13px;color:var(--muted);line-height:1.55}
 
 .analysis p{margin:0 0 10px;line-height:1.55;font-size:15px}
-.analysis ul{margin:0 0 10px;padding-left:20px}.analysis li{margin:4px 0;line-height:1.5;font-size:15px}
+.analysis ul,.analysis ol{margin:0 0 10px;padding-left:22px}.analysis li{margin:4px 0;line-height:1.5;font-size:15px}
 .analysis strong{color:#fff}
 .foot{margin-top:24px;color:var(--muted);font-size:12px;line-height:1.6;text-align:center}
 
@@ -1127,14 +1253,14 @@ _JS = """
  var root=document.getElementById('team-root');
  if(!root) return;
  var REGIONS=['eu','na','ap','kr','latam','br'];
- var team=[], sums={}, loading=false, opened=false;
+ var team=[], sums={}, loading=false, opened=false, teamName='', anaHtml='', analyzing=false;
 
  function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
  function api(u,o){return fetch(u,o).then(function(r){return r.json();});}
 
  function boot(){
    api('/api/team').then(function(j){
-     team=(j.team||[]).slice(0,6);
+     team=(j.team||[]).slice(0,6); teamName=j.team_name||'';
      render();
      // auto-charge le cache (rapide) pour les emplacements configurés
      team.forEach(function(p,i){ refreshSlot(i,false); });
@@ -1163,13 +1289,24 @@ _JS = """
      var reg=document.getElementById('tm-reg-'+i).value;
      players.push({riot_id:rid,region:reg});
    }
+   var nm=document.getElementById('tm-name'); var name=nm?(nm.value||'').trim():teamName;
    var msg=document.getElementById('tm-cfg-msg'); msg.textContent='Enregistrement…';
    api('/api/team/config',{method:'POST',headers:{'Content-Type':'application/json'},
-     body:JSON.stringify({players:players})}).then(function(j){
+     body:JSON.stringify({players:players,name:name})}).then(function(j){
      if(j.error){msg.textContent='⚠ '+j.error;return;}
-     team=j.team||[]; sums={}; msg.textContent='✓ Équipe enregistrée';
+     team=j.team||[]; teamName=j.team_name||''; sums={}; msg.textContent='✓ Équipe enregistrée';
      render(); team.forEach(function(p,i){ refreshSlot(i,false); });
    }).catch(function(){msg.textContent='⚠ Serveur requis';});
+ }
+
+ function analyzeTeam(){
+   if(analyzing||!team.length) return;
+   analyzing=true; render();
+   api('/api/team/analyze?queue='+QUEUE,{method:'POST'}).then(function(j){
+     analyzing=false;
+     anaHtml=j.error?('<p class="muted">⚠ '+esc(j.error)+'</p>'):(j.analysis||'<p class="muted">Réponse vide.</p>');
+     render();
+   }).catch(function(){ analyzing=false; anaHtml='<p class="muted">⚠ Serveur / réseau indisponible.</p>'; render(); });
  }
 
  // ---- synthèse d'équipe ----
@@ -1231,14 +1368,18 @@ _JS = """
  var showCfg=false;
  function render(){
    var h='<div class="tm-head"><div><h2 style="margin:0;display:flex;align-items:center;gap:8px">'
-     +'<svg viewBox="0 0 24 24" aria-hidden="true" style="width:19px;height:19px;stroke:var(--red);stroke-width:1.8;fill:none;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto"><path d="M12 3l7 3v5c0 4.2-3 7.2-7 8.5C8 18.2 5 15.2 5 11V6z"/><circle cx="12" cy="10.5" r="2"/><path d="M8.5 15.5c.7-1.6 2-2.5 3.5-2.5s2.8.9 3.5 2.5"/></svg>Ma Team</h2>'
+     +'<svg viewBox="0 0 24 24" aria-hidden="true" style="width:19px;height:19px;stroke:var(--red);stroke-width:1.8;fill:none;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto"><path d="M12 3l7 3v5c0 4.2-3 7.2-7 8.5C8 18.2 5 15.2 5 11V6z"/><circle cx="12" cy="10.5" r="2"/><path d="M8.5 15.5c.7-1.6 2-2.5 3.5-2.5s2.8.9 3.5 2.5"/></svg>'+esc(teamName||'Ma Team')+'</h2>'
      +'<p class="muted mini" style="margin:4px 0 0">Suivi des '+(team.length||'')+' joueurs · '
      +'15 dernières parties '+(QUEUE==='premier'?'Premier':'Ranked')+' · à la demande.</p></div>'
      +'<div class="tm-actions">'
      +'<button class="car-btn ghost" id="tm-toggle" type="button" style="padding:9px 14px">⚙ Configurer</button>'
+     +'<button class="car-btn ghost" id="tm-analyze" type="button" style="padding:9px 16px"'+((analyzing||!team.length)?' disabled':'')+'>'
+     +(analyzing?'Analyse en cours…':'✦ Analyse IA')+'</button>'
      +'<button class="car-btn primary" id="tm-update" type="button" style="padding:9px 16px"'+(loading?' disabled':'')+'>'
      +(loading?'⏳ Mise à jour…':'↻ Mettre à jour')+'</button></div></div>';
    if(showCfg||!team.length){
+     h+='<label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:.14em;color:var(--muted);margin:2px 0 6px;font-weight:800">Nom de l’équipe</label>'
+       +'<input id="tm-name" placeholder="Ex. Sentinels" value="'+esc(teamName)+'" autocomplete="off" maxlength="40" style="width:100%;font:inherit;font-size:14px;font-weight:700;padding:9px 12px;border-radius:10px;box-sizing:border-box;background:rgba(255,255,255,.06);border:1px solid var(--brd);color:var(--ink);margin-bottom:12px">';
      h+='<div class="tm-cfg">';
      for(var i=0;i<6;i++){
        var p=team[i]||{riot_id:'',region:'eu'};
@@ -1256,9 +1397,16 @@ _JS = """
      h+=synthesis();
      h+='<div class="tm-grid">'+team.map(function(p,i){return card(p,sums[i]);}).join('')+'</div>';
    }
+   if(analyzing||anaHtml){
+     h+='<div class="glass card section" style="margin-top:14px"><h2 style="display:flex;align-items:center;gap:8px">'
+       +'<svg viewBox="0 0 24 24" aria-hidden="true" style="width:18px;height:18px;stroke:var(--violet);stroke-width:1.7;fill:none;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto"><path d="M12 3l1.8 4.9L18.7 9l-4.9 1.8L12 15.7 10.2 10.8 5.3 9l4.9-1.1z"/><path d="M18 14l.7 1.9L20.6 17l-1.9.7L18 19.6l-.7-1.9L15.4 17l1.9-.7z"/></svg>'
+       +'Analyse d’équipe (IA)</h2>'
+       +'<div class="analysis">'+(analyzing?'<p class="muted">Analyse en cours… (DeepSeek)</p>':anaHtml)+'</div></div>';
+   }
    root.innerHTML=h;
    var tg=document.getElementById('tm-toggle'); if(tg)tg.onclick=function(){showCfg=!showCfg;render();};
    var up=document.getElementById('tm-update'); if(up)up.onclick=updateAll;
+   var an=document.getElementById('tm-analyze'); if(an)an.onclick=analyzeTeam;
    var sv=document.getElementById('tm-save'); if(sv)sv.onclick=saveCfg;
  }
 
@@ -1312,6 +1460,7 @@ _PAGE = """<!doctype html>
      </div>
    </div>
    <div class="glass card section"><div class="kpis">{kpis}</div></div>
+   <div class="glass card section"><h2>Jours de jeu · saison {act}</h2>{calendar}</div>
    <div class="cols section">
      <div class="glass card"><h2>Win rate par carte</h2>{map_bars}</div>
      <div class="glass card"><h2>Dernières parties</h2>{matches}</div>

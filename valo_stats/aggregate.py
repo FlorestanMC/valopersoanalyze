@@ -1,5 +1,23 @@
 """Agrégation des matchs HenrikDev (v3/v2) en statistiques lisibles pour un joueur."""
 from collections import defaultdict
+from datetime import datetime
+
+
+def _match_day(meta: dict):
+    """Date locale 'YYYY-MM-DD' du match à partir de game_start (s ou ms), sinon None."""
+    ts = meta.get("game_start")
+    if ts is None:
+        return None
+    try:
+        ts = float(ts)
+    except (TypeError, ValueError):
+        return None
+    if ts > 1e12:  # millisecondes -> secondes
+        ts /= 1000.0
+    try:
+        return datetime.fromtimestamp(ts).strftime("%Y-%m-%d")
+    except (ValueError, OSError, OverflowError):
+        return None
 
 
 def _find_me(match: dict, puuid: str):
@@ -19,6 +37,7 @@ def aggregate(matches, puuid, queue_filter="competitive"):
     }
     by_agent = defaultdict(lambda: {"games": 0, "wins": 0, "kills": 0, "deaths": 0})
     by_map = defaultdict(lambda: {"games": 0, "wins": 0})
+    by_day = defaultdict(int)
     recent = []
 
     for match in matches:
@@ -66,6 +85,10 @@ def aggregate(matches, puuid, queue_filter="competitive"):
         by_map[map_name]["games"] += 1
         by_map[map_name]["wins"] += int(won)
 
+        day = _match_day(meta)
+        if day:
+            by_day[day] += 1
+
         recent.append({
             "agent": agent, "map": map_name, "won": won,
             "kda": f"{k}/{d}/{a}",
@@ -73,10 +96,10 @@ def aggregate(matches, puuid, queue_filter="competitive"):
             "hs": round(hs, 1) if hs is not None else None,
         })
 
-    return _finalize(overall, by_agent, by_map, recent)
+    return _finalize(overall, by_agent, by_map, recent, by_day)
 
 
-def _finalize(overall, by_agent, by_map, recent):
+def _finalize(overall, by_agent, by_map, recent, by_day=None):
     g = overall["games"]
     if g == 0:
         return {"games": 0}
@@ -104,6 +127,7 @@ def _finalize(overall, by_agent, by_map, recent):
         "precision": {"hs": shot_pct(overall["head"]), "bs": shot_pct(overall["body"]),
                       "ls": shot_pct(overall["leg"])},
         "agents": {}, "maps": {}, "recent": recent,
+        "days": dict(sorted((by_day or {}).items())),
     }
     for agent, s in sorted(by_agent.items(), key=lambda kv: -kv[1]["games"]):
         summary["agents"][agent] = {
