@@ -387,7 +387,10 @@ body{position:relative;overflow-x:hidden;background:transparent}
 /* tabs */
 .tabs{display:flex;gap:6px;margin:6px 0 20px;flex-wrap:wrap}
 .tab{font:inherit;font-weight:800;font-size:14px;color:var(--muted);cursor:pointer;padding:11px 20px;
- border-radius:13px;border:1px solid transparent;background:transparent;transition:.16s}
+ border-radius:13px;border:1px solid transparent;background:transparent;transition:.16s;
+ display:inline-flex;align-items:center;gap:8px}
+.tab-ic{width:16px;height:16px;flex:0 0 auto;stroke:currentColor;stroke-width:1.7;fill:none;
+ stroke-linecap:round;stroke-linejoin:round}
 .tab:hover{color:var(--ink)}
 .tab.active{color:#fff;background:var(--glass);border-color:var(--brd);
  box-shadow:inset 0 1px 0 rgba(255,255,255,.14)}
@@ -1131,7 +1134,7 @@ _JS = """
 
  function boot(){
    api('/api/team').then(function(j){
-     team=(j.team||[]).slice(0,5);
+     team=(j.team||[]).slice(0,6);
      render();
      // auto-charge le cache (rapide) pour les emplacements configurés
      team.forEach(function(p,i){ refreshSlot(i,false); });
@@ -1155,7 +1158,7 @@ _JS = """
 
  function saveCfg(){
    var players=[];
-   for(var i=0;i<5;i++){
+   for(var i=0;i<6;i++){
      var rid=(document.getElementById('tm-rid-'+i).value||'').trim();
      var reg=document.getElementById('tm-reg-'+i).value;
      players.push({riot_id:rid,region:reg});
@@ -1174,7 +1177,9 @@ _JS = """
    var loaded=team.map(function(p,i){return sums[i];}).filter(function(s){return s&&s.summary&&s.summary.games;});
    if(!loaded.length) return '';
    var g=0,w=0,acsSum=0,acsN=0,kdN=0,kdSum=0;
-   loaded.forEach(function(s){var d=s.summary;g+=d.games;w+=(d.wins||0);
+   loaded.forEach(function(s){var d=s.summary;
+     g+=(d.act_games!=null?d.act_games:d.games);
+     w+=(d.act_wins!=null?d.act_wins:(d.wins||0));
      if(d.avg_acs){acsSum+=d.avg_acs;acsN++;} if(d.kd){kdSum+=d.kd;kdN++;}});
    var wr=g?Math.round(w/g*1000)/10:0;
    return '<div class="tm-syn">'
@@ -1211,9 +1216,13 @@ _JS = """
      var ic=a.icon?'<img src="'+esc(a.icon)+'">':'';
      return '<span class="tm-ag">'+ic+esc(a.name)+' <b style="color:var(--muted)">'+a.games+'</b></span>';}).join('');
    var form=(d.recent||[]).map(function(r){return '<div class="r '+(r.won?'w':'l')+'">'+(r.won?'V':'D')+'</div>';}).join('');
+   var hasAct=(d.act_games!=null);
+   var gGames=hasAct?d.act_games:d.games;
+   var gWins=(d.act_wins!=null)?d.act_wins:d.wins;
+   var gLoss=(hasAct&&d.act_wins!=null)?(d.act_games-d.act_wins):d.losses;
    return '<div class="tm-card" style="border-top:3px solid '+rc+'">'+head+kpis
      +'<div class="tm-ags">'+(ags||'<span class="tm-sub">—</span>')+'</div>'
-     +'<div class="tm-sub" style="margin-bottom:5px">'+d.games+' parties · '+d.wins+'V '+d.losses+'D · HS '
+     +'<div class="tm-sub" style="margin-bottom:5px">'+gGames+' parties'+(hasAct?' <b style="color:'+rc+'">act</b>':'')+' · '+gWins+'V '+gLoss+'D · HS '
      +(d.avg_hs_pct!=null?d.avg_hs_pct+'%':'n/d')+'</div>'
      +'<div class="tm-form">'+form+'</div></div>';
  }
@@ -1221,7 +1230,8 @@ _JS = """
 
  var showCfg=false;
  function render(){
-   var h='<div class="tm-head"><div><h2 style="margin:0">👥 Ma Team</h2>'
+   var h='<div class="tm-head"><div><h2 style="margin:0;display:flex;align-items:center;gap:8px">'
+     +'<svg viewBox="0 0 24 24" aria-hidden="true" style="width:19px;height:19px;stroke:var(--red);stroke-width:1.8;fill:none;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto"><path d="M12 3l7 3v5c0 4.2-3 7.2-7 8.5C8 18.2 5 15.2 5 11V6z"/><circle cx="12" cy="10.5" r="2"/><path d="M8.5 15.5c.7-1.6 2-2.5 3.5-2.5s2.8.9 3.5 2.5"/></svg>Ma Team</h2>'
      +'<p class="muted mini" style="margin:4px 0 0">Suivi des '+(team.length||'')+' joueurs · '
      +'15 dernières parties '+(QUEUE==='premier'?'Premier':'Ranked')+' · à la demande.</p></div>'
      +'<div class="tm-actions">'
@@ -1230,10 +1240,11 @@ _JS = """
      +(loading?'⏳ Mise à jour…':'↻ Mettre à jour')+'</button></div></div>';
    if(showCfg||!team.length){
      h+='<div class="tm-cfg">';
-     for(var i=0;i<5;i++){
+     for(var i=0;i<6;i++){
        var p=team[i]||{riot_id:'',region:'eu'};
-       h+='<div class="tm-row"><span class="idx">'+(i+1)+'</span>'
-         +'<input id="tm-rid-'+i+'" placeholder="Pseudo#TAG" value="'+esc(p.riot_id)+'" autocomplete="off">'
+       var isCoach=(i===5);
+       h+='<div class="tm-row"><span class="idx">'+(isCoach?'C':(i+1))+'</span>'
+         +'<input id="tm-rid-'+i+'" placeholder="'+(isCoach?'Pseudo#TAG (coach / remplaçant)':'Pseudo#TAG')+'" value="'+esc(p.riot_id)+'" autocomplete="off">'
          +'<select id="tm-reg-'+i+'">'+REGIONS.map(function(r){
              return '<option value="'+r+'"'+(p.region===r?' selected':'')+'>'+r.toUpperCase()+'</option>';}).join('')
          +'</select></div>';
@@ -1283,8 +1294,8 @@ _PAGE = """<!doctype html>
    <button class="tab" data-tab="agents">Agents</button>
    <button class="tab" data-tab="weapons">Armes</button>
    <button class="tab" data-tab="fc">First Contact</button>
-   <button class="tab" data-tab="team">👥 Team</button>
-   <button class="tab" data-tab="vct">🎮 Carrière</button>
+   <button class="tab" data-tab="team"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 3v5c0 4.2-3 7.2-7 8.5C8 18.2 5 15.2 5 11V6z"/><circle cx="12" cy="10.5" r="2"/><path d="M8.5 15.5c.7-1.6 2-2.5 3.5-2.5s2.8.9 3.5 2.5"/></svg>Team</button>
+   <button class="tab" data-tab="vct"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10v3a5 5 0 0 1-10 0z"/><path d="M7 5H4v1a3 3 0 0 0 3 3"/><path d="M17 5h3v1a3 3 0 0 1-3 3"/><path d="M12 12v3"/><path d="M8.5 20h7"/><path d="M10 17h4l.5 3h-5z"/></svg>Carrière</button>
  </nav>
 
  <section id="panel-ov" class="panel show">

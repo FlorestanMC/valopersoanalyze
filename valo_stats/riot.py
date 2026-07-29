@@ -75,6 +75,14 @@ class HenrikClient:
         )
         return data.get("data", []) or []
 
+    # --- MMR : total de parties / victoires par act (sans télécharger) ---
+    def get_mmr(self, game_name: str, tag_line: str) -> dict:
+        """Renvoie le bloc MMR, dont `by_season` (parties + victoires par act)."""
+        data = self._get(
+            f"/valorant/v2/mmr/{self.region}/{game_name}/{tag_line}"
+        )
+        return data.get("data", {}) or {}
+
     # --- détail complet d'un match (contient le tableau 'kills') ---------
     def get_match_detail(self, match_id: str) -> dict:
         data = self._get(f"/valorant/v2/match/{match_id}")

@@ -49,9 +49,12 @@ def clear_target() -> dict:
 
 
 def set_team(players) -> dict:
-    """Enregistre l'effectif suivi (max 5). players : liste de {riot_id, region}."""
+    """Enregistre l'effectif suivi (max 6). players : liste de {riot_id, region}.
+
+    Le 6e emplacement sert au coach / remplaçant.
+    """
     clean = []
-    for p in (players or [])[:5]:
+    for p in (players or [])[:6]:
         rid = (p.get("riot_id") or "").strip()
         reg = (p.get("region") or "eu").strip().lower()
         if "#" in rid:

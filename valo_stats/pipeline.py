@@ -11,6 +11,7 @@ from .aggregate import aggregate
 from . import first_contact, advanced, coach, ranks
 
 CACHE_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cache", "matches")
+ACT_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cache", "act_totals")
 
 
 # --- cache ------------------------------------------------------------------
@@ -93,10 +94,58 @@ def load_details(client, ids, allow_fetch=True, log=lambda *_: None, sleep=2.2):
     return matches, fetched, missing
 
 
+# --- total de parties de l'act via MMR (sans télécharger les matchs) --------
+def act_totals(client, game_name, tag_line, act_short):
+    """(nb_parties, victoires) de l'act `act_short` via l'endpoint MMR, sinon None.
+
+    N'effectue qu'un appel réseau léger : aucun détail de match n'est téléchargé.
+    """
+    if not act_short:
+        return None, None
+    try:
+        by_season = (client.get_mmr(game_name, tag_line).get("by_season") or {})
+    except Exception:  # noqa: BLE001 — MMR indispo : on dégrade proprement
+        return None, None
+    target = act_short.lower()
+    for key, val in by_season.items():
+        if key.lower() == target and isinstance(val, dict) and not val.get("error"):
+            return val.get("number_of_games"), val.get("wins")
+    return None, None
+
+
+def _act_cache_path(region, riot_id):
+    safe = "".join(c if c.isalnum() else "_" for c in f"{region}_{riot_id}")
+    return os.path.join(ACT_DIR, f"{safe}.json")
+
+
+def _read_act_cache(region, riot_id, act_short):
+    """Totaux d'act en cache, seulement s'ils concernent l'act courant."""
+    try:
+        with open(_act_cache_path(region, riot_id), encoding="utf-8") as f:
+            d = json.load(f)
+        if d.get("act") == act_short:
+            return d.get("games"), d.get("wins")
+    except (OSError, ValueError):
+        pass
+    return None, None
+
+
+def _write_act_cache(region, riot_id, act_short, games, wins):
+    try:
+        os.makedirs(ACT_DIR, exist_ok=True)
+        with open(_act_cache_path(region, riot_id), "w", encoding="utf-8") as f:
+            json.dump({"act": act_short, "games": games, "wins": wins}, f)
+    except OSError:
+        pass
+
+
 # --- résumé compact d'un joueur (onglet Team) -------------------------------
 def player_summary(client, game_name, tag_line, queue="competitive",
                    count=15, allow_fetch=True, log=lambda *_: None):
     """Résumé léger des `count` dernières parties d'un joueur (forme récente).
+
+    Les KPI (WR, K/D, ACS, KAST…) portent sur les `count` dernières parties, mais
+    `act_games` / `act_wins` donnent le total réel de l'act (via MMR).
 
     Réutilise le cache global des matchs : deux coéquipiers partageant une partie
     ne la téléchargent qu'une fois.
@@ -104,6 +153,7 @@ def player_summary(client, game_name, tag_line, queue="competitive",
     stored = client.get_stored_matches(game_name, tag_line, queue, size=count)
     if not stored:
         return {"games": 0, "fetched": 0, "missing": 0}
+    act_short = stored[0].get("meta", {}).get("season", {}).get("short")
     ids = [m["meta"]["id"] for m in stored[:count]]
     matches, fetched, missing = load_details(client, ids, allow_fetch=allow_fetch, log=log)
     if not matches:
@@ -123,9 +173,21 @@ def player_summary(client, game_name, tag_line, queue="competitive",
     top_agent = agents[0][0] if agents else None
     agent_bg = imgs.get(top_agent, {}).get("portrait") if top_agent else None
 
+    # Totaux de l'act via MMR (réseau) puis mis en cache, sinon relecture du cache
+    # pour rester dispo lors des chargements cache-only (ouverture d'onglet).
+    riot_id = f"{game_name}#{tag_line}"
+    act_games = act_wins = None
+    if allow_fetch:
+        act_games, act_wins = act_totals(client, game_name, tag_line, act_short)
+        if act_games is not None:
+            _write_act_cache(client.region, riot_id, act_short, act_games, act_wins)
+    if act_games is None:
+        act_games, act_wins = _read_act_cache(client.region, riot_id, act_short)
+
     rk = ranks.info(meta.get("tier"), meta["rank"])
     return {
         "games": ov.get("games", 0),
+        "act_games": act_games, "act_wins": act_wins,
         "rank": meta["rank"], "level": meta["level"],
         "rank_icon": rk["icon"], "rank_color": rk["color"],
         "win_rate": ov.get("win_rate"), "wins": ov.get("wins"), "losses": ov.get("losses"),
