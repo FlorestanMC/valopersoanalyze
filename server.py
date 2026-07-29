@@ -87,6 +87,7 @@ def _invalidate_updates():
 
 
 def _empty_page(queue):
+    base = request.script_root
     label = "Premier" if queue == "premier" else "Ranked"
     other = "competitive" if queue == "premier" else "premier"
     other_label = "Ranked" if queue == "premier" else "Premier"
@@ -103,15 +104,15 @@ def _empty_page(queue):
     <button id="load" style="font:inherit;font-weight:800;cursor:pointer;padding:12px 20px;
      border-radius:12px;border:0;color:#fff;background:linear-gradient(135deg,#FF4655,#ff2d8e)">
      ↻ Charger les parties {label}</button>
-    <a href="/?queue={other}" style="font:inherit;font-weight:800;padding:12px 20px;border-radius:12px;
+    <a href="{base}/?queue={other}" style="font:inherit;font-weight:800;padding:12px 20px;border-radius:12px;
      border:1px solid rgba(255,255,255,.15);color:#F2F0EA;text-decoration:none">{other_label}</a>
   </div>
 </div>
 <script>
 document.getElementById('load').addEventListener('click',function(){{
   var b=this;b.disabled=true;b.textContent='⏳ Téléchargement...';
-  fetch('/api/refresh?queue={queue}',{{method:'POST'}}).then(function(r){{return r.json()}})
-   .then(function(){{location.href='/?queue={queue}'}})
+  fetch('{base}/api/refresh?queue={queue}',{{method:'POST'}}).then(function(r){{return r.json()}})
+   .then(function(){{location.href='{base}/?queue={queue}'}})
    .catch(function(){{b.textContent='⚠ Erreur';}});
 }});
 </script></body>"""
@@ -120,7 +121,7 @@ document.getElementById('load').addEventListener('click',function(){{
 def _with_background(data):
     s = settings.load()
     bp = settings.bg_path()
-    url = f"/user-bg?v={int(os.path.getmtime(bp))}" if bp else None
+    url = f"{request.script_root}/user-bg?v={int(os.path.getmtime(bp))}" if bp else None
     data["background"] = {"url": url, "dim": s.get("dim", 55)}
     return data
 
@@ -136,6 +137,7 @@ def index():
         return _empty_page(q)
     # Parties fraîchement téléchargées à la dernière MAJ (surlignées une fois).
     data["new_ids"] = list(pipeline.pop_new_ids())
+    data["base"] = request.script_root  # préfixe de montage (ex. /stats)
     return dashboard.render(_with_background(data))
 
 

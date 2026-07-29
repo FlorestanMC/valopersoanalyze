@@ -214,10 +214,10 @@ def _chip(name, img, size=34):
     return f'<span class="chip chip-ph" style="width:{size}px;height:{size}px">{initial}</span>'
 
 
-def _queue_switch(active):
+def _queue_switch(active, base=""):
     def item(key):
         cls = "qbtn active" if key == active else "qbtn"
-        return f'<a class="{cls}" href="/?queue={key}">{QUEUE_LABEL[key]}</a>'
+        return f'<a class="{cls}" href="{base}/?queue={key}">{QUEUE_LABEL[key]}</a>'
     return f'<div class="qswitch">{item("competitive")}{item("premier")}</div>'
 
 
@@ -428,9 +428,11 @@ def render(data: dict) -> str:
     def _pr(v):
         return v if v is not None else "n/d"
 
+    base = data.get("base", "")
     return _PAGE.format(
         css=_CSS, js=_JS, name=name, rank=rank, rank_pill=rank_pill, level=level, act=act, gen=gen,
-        queue=queue, qswitch=_queue_switch(queue), bg_layer=bg_layer,
+        base=base,
+        queue=queue, qswitch=_queue_switch(queue, base), bg_layer=bg_layer,
         userbg=userbg, body_class=body_class, dim=bg_dim,
         region_options=region_options,
         mint=MINT, red=RED,
@@ -828,7 +830,7 @@ _JS = """
  // Indicateur « nouvelles parties depuis la dernière MAJ » (Vue d'ensemble) : point rouge
  (function(){
    var rb=document.getElementById('refresh'); if(!rb)return;
-   fetch('/api/updates?queue='+QUEUE).then(function(r){return r.json()}).then(function(j){
+   fetch(BASE+'/api/updates?queue='+QUEUE).then(function(r){return r.json()}).then(function(j){
      if(j&&j.new>0){
        rb.classList.add('has-new');
        rb.title=j.new+' nouvelle(s) partie'+(j.new>1?'s':'')+' depuis la dernière mise à jour';
@@ -839,7 +841,7 @@ _JS = """
  var btn=document.getElementById('refresh');
  if(btn){var base=btn.textContent;btn.addEventListener('click',function(){
    btn.disabled=true;btn.textContent='⏳ Mise a jour...';
-   fetch('/api/refresh?queue='+QUEUE,{method:'POST'})
+   fetch(BASE+'/api/refresh?queue='+QUEUE,{method:'POST'})
     .then(function(r){return r.json()})
     .then(function(j){btn.textContent='✓ '+(j.fetched||0)+' nouvelle(s)';
       setTimeout(function(){location.reload()},800)})
@@ -857,7 +859,7 @@ _JS = """
      dv.textContent=dim.value+'%';
      if(uv)uv.style.background='rgba(7,6,15,'+(dim.value/100)+')';
      clearTimeout(tmr);tmr=setTimeout(function(){
-       fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},
+       fetch(BASE+'/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({dim:parseInt(dim.value,10)})}).catch(function(){});
      },400);
    })}
@@ -866,14 +868,14 @@ _JS = """
      if(!fi.files||!fi.files[0]){modal.classList.remove('open');return}
      var fd=new FormData();fd.append('bg',fi.files[0]);
      af.disabled=true;af.textContent='Envoi...';
-     fetch('/api/background',{method:'POST',body:fd}).then(function(r){return r.json()})
+     fetch(BASE+'/api/background',{method:'POST',body:fd}).then(function(r){return r.json()})
       .then(function(j){if(j.error){af.textContent='⚠ '+j.error;af.disabled=false;}
         else{location.reload()}})
       .catch(function(){af.textContent='⚠ Serveur requis';af.disabled=false});
    })}
    var rb=document.getElementById('bg-reset');
    if(rb){rb.addEventListener('click',function(){
-     fetch('/api/background/reset',{method:'POST'}).then(function(){location.reload()}).catch(function(){});
+     fetch(BASE+'/api/background/reset',{method:'POST'}).then(function(){location.reload()}).catch(function(){});
    })}
    var ta=document.getElementById('target-apply'), ri=document.getElementById('riot-id'),
        rg=document.getElementById('region');
@@ -882,13 +884,13 @@ _JS = """
      if(rid.indexOf('#')<1){ta.textContent='⚠ Format Pseudo#TAG';
        setTimeout(function(){ta.textContent='Charger ce compte'},2200);return;}
      ta.disabled=true;ta.textContent='⏳ Chargement du compte...';
-     fetch('/api/target',{method:'POST',headers:{'Content-Type':'application/json'},
+     fetch(BASE+'/api/target',{method:'POST',headers:{'Content-Type':'application/json'},
        body:JSON.stringify({riot_id:rid,region:rg.value})})
       .then(function(r){return r.json()})
       .then(function(j){if(j.error){ta.textContent='⚠ '+j.error;ta.disabled=false;return;}
         ta.textContent='⏳ Téléchargement des parties...';
-        return fetch('/api/refresh?queue='+QUEUE,{method:'POST'})
-          .then(function(){location.href='/?queue='+QUEUE});})
+        return fetch(BASE+'/api/refresh?queue='+QUEUE,{method:'POST'})
+          .then(function(){location.href=BASE+'/?queue='+QUEUE});})
       .catch(function(){ta.textContent='⚠ Serveur requis';ta.disabled=false});
    })}
  }
@@ -1357,7 +1359,7 @@ _JS = """
  var updates={}, updTotal=0, justNew={};
 
  function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
- function api(u,o){return fetch(u,o).then(function(r){return r.json();});}
+ function api(u,o){return fetch(BASE+u,o).then(function(r){return r.json();});}
 
  function boot(){
    api('/api/team').then(function(j){
@@ -1662,6 +1664,6 @@ _PAGE = """<!doctype html>
   </div>
 </div>
 
-<script>var QUEUE={queue!r};{js}</script>
+<script>var QUEUE={queue!r};var BASE={base!r};{js}</script>
 </body></html>
 """
