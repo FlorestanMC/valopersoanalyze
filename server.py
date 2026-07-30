@@ -133,7 +133,9 @@ def index():
     cfg, client = _ctx()
     data, _ = pipeline.build_data(client, cfg, queue=q,
                                   allow_fetch=False, want_analysis=False)
-    if data is None:
+    # Pas de données exploitables (cache vide, ou joueur absent des parties en
+    # cache) -> page d'accueil « Charger les parties » plutôt qu'un 500.
+    if data is None or not data.get("overview", {}).get("games"):
         return _empty_page(q)
     # Parties fraîchement téléchargées à la dernière MAJ (surlignées une fois).
     data["new_ids"] = list(pipeline.pop_new_ids())
