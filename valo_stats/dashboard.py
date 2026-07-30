@@ -262,11 +262,39 @@ def _split_table(b1, b2, l1, l2):
             f'<tbody>{"".join(rows)}</tbody></table>')
 
 
+def _split_matrix(cross):
+    cross = cross or {}
+    cols = [("Att · G", "attack_win", "sp-g"), ("Att · P", "attack_loss", "sp-p"),
+            ("Déf · G", "defense_win", "sp-g"), ("Déf · P", "defense_loss", "sp-p")]
+    buckets = [cross.get(k) or {} for _, k, _ in cols]
+    head = "".join(f'<th class="{cls}">{_esc(lbl)}</th>' for lbl, _, cls in cols)
+    rows = []
+    for label, key, hb, suf in _SPLIT_ROWS:
+        if key == "clutch":
+            vals = [b.get("clutch") for b in buckets]
+            disps = [f'{b.get("cwon", 0)}/{b.get("catt", 0)}' if b.get("catt") else "—" for b in buckets]
+        else:
+            vals = [b.get(key) for b in buckets]
+            disps = [f'{v}{suf}' if v is not None else "—" for v in vals]
+        nums = [(i, v) for i, v in enumerate(vals) if isinstance(v, (int, float))]
+        best = None
+        if hb is not None and len(nums) >= 2:
+            best = (max if hb else min)(nums, key=lambda t: t[1])[0]
+        tds = ""
+        for i in range(len(cols)):
+            cls = ' class="sp-best"' if best == i else ""
+            tds += f"<td{cls}>{_esc(disps[i])}</td>"
+        rows.append(f'<tr><td class="sp-l">{_esc(label)}</td>{tds}</tr>')
+    return (f'<div class="sp-scroll"><table class="sp-table sp-matrix">'
+            f'<thead><tr><th></th>{head}</tr></thead>'
+            f'<tbody>{"".join(rows)}</tbody></table></div>')
+
+
 def _splits_section(sp):
     sp = sp or {}
     by_side = sp.get("by_side", {})
     by_out = sp.get("by_outcome", {})
-    return (
+    two = (
         '<div class="glass card"><h2>Par side · Attaque vs Défense</h2>'
         + _split_table(by_side.get("attack"), by_side.get("defense"), "Attaque", "Défense")
         + '</div>'
@@ -274,6 +302,13 @@ def _splits_section(sp):
         + _split_table(by_out.get("win"), by_out.get("loss"), "Rounds gagnés", "Rounds perdus")
         + '</div>'
     )
+    matrix = (
+        '<div class="glass card section"><h2>Matrice 2×2 · side × issue</h2>'
+        + _split_matrix(sp.get("cross"))
+        + '<p class="muted mini" style="margin:10px 0 0">Att = Attaque · Déf = Défense · '
+          'G = round gagné · P = round perdu. Meilleure valeur de chaque ligne surlignée.</p></div>'
+    )
+    return f'<div class="cols">{two}</div>{matrix}'
 
 
 # --- rendu principal --------------------------------------------------------
@@ -706,6 +741,10 @@ body{position:relative;overflow-x:hidden;background:transparent}
 .sp-table tr:last-child td{border-bottom:0}
 .sp-table td.sp-l{text-align:left;color:var(--muted);font-size:13px;font-weight:700}
 .sp-table td.sp-best{color:var(--mint)}
+.sp-scroll{overflow-x:auto}
+.sp-matrix{min-width:520px}
+.sp-matrix th.sp-g{color:#7CF6C6}.sp-matrix th.sp-p{color:#FF8A95}
+.sp-matrix td{font-size:14px;padding:9px 10px}
 
 /* agents grid */
 .agrid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
@@ -1691,7 +1730,7 @@ _PAGE = """<!doctype html>
    <p class="muted mini" style="margin:0 0 14px">Décomposition round par round. <b>Attaque/Défense</b>
      déduit des plants ; <b>issue</b> selon l'équipe gagnante du round. La valeur la plus favorable
      de chaque ligne est <span style="color:var(--mint);font-weight:800">surlignée</span>.</p>
-   <div class="cols">{splits}</div>
+   {splits}
    <p class="muted mini" style="margin:14px 0 0">HS% par arme et stats d'utilitaires ne sont pas
      fournis par round par l'API HenrikDev — non affichés.</p>
  </section>

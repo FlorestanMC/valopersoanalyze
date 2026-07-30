@@ -98,6 +98,8 @@ def _finalize(b):
 def compute(matches, puuid, queue="competitive"):
     side = {"attack": _blank(), "defense": _blank()}
     outc = {"win": _blank(), "loss": _blank()}
+    cross = {"attack_win": _blank(), "attack_loss": _blank(),
+             "defense_win": _blank(), "defense_loss": _blank()}
 
     for match in matches:
         team = _my_team(match, puuid)
@@ -160,7 +162,11 @@ def compute(matches, puuid, queue="competitive"):
                         catt = 1
                         cwon = int(outcome == "win")
 
-            for b in ([side[sd]] if sd else []) + [outc[outcome]]:
+            targets = [outc[outcome]]
+            if sd:
+                targets.append(side[sd])
+                targets.append(cross[f"{sd}_{outcome}"])
+            for b in targets:
                 b["rounds"] += 1
                 b["dmg"] += dmg
                 b["hs"] += hs
@@ -179,4 +185,5 @@ def compute(matches, puuid, queue="competitive"):
     return {
         "by_side": {k: _finalize(v) for k, v in side.items()},
         "by_outcome": {k: _finalize(v) for k, v in outc.items()},
+        "cross": {k: _finalize(v) for k, v in cross.items()},
     }
