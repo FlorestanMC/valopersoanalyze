@@ -149,6 +149,30 @@ document.getElementById('reset').addEventListener('click',function(){{
 </script></body>"""
 
 
+def _api_unavailable_page(msg, queue):
+    """Toute panne au chargement (API HenrikDev saturée, réseau, base) -> page
+    « réessayer » plutôt qu'un 500."""
+    base = request.script_root
+    safe = str(msg or "").replace("<", "&lt;").replace(">", "&gt;")[:300]
+    return f"""<!doctype html><meta charset="utf-8">
+<title>Valo Stats</title>
+<body style="font-family:-apple-system,Inter,Segoe UI,sans-serif;background:#07060f;
+ color:#F2F0EA;min-height:100vh;margin:0;display:grid;place-items:center;text-align:center">
+<div style="max-width:500px;padding:30px">
+  <div style="font-weight:900;letter-spacing:.2em;color:#FF4655;font-size:12px">◆ VALO STATS</div>
+  <h2 style="font-size:26px;margin:12px 0">Service momentanément indisponible</h2>
+  <p style="color:#98a2b3;line-height:1.55">Impossible de récupérer les données pour
+   l'instant — l'API HenrikDev est peut-être saturée (limite de requêtes) ou le réseau
+   a hoqueté. Réessaie dans quelques instants.</p>
+  <div style="display:flex;gap:10px;justify-content:center;margin-top:22px">
+    <button onclick="location.reload()" style="font:inherit;font-weight:800;cursor:pointer;
+     padding:12px 20px;border-radius:12px;border:0;color:#fff;
+     background:linear-gradient(135deg,#FF4655,#ff2d8e)">↻ Réessayer</button>
+  </div>
+  <p style="color:#6b7280;font-size:12px;margin-top:18px">Détail : {safe}</p>
+</div></body>"""
+
+
 def _with_background(data):
     s = settings.load()
     bp = settings.bg_path()
@@ -160,21 +184,26 @@ def _with_background(data):
 @app.get("/")
 def index():
     # Chargement rapide : on n'utilise que le cache (pas de téléchargement).
+    # Toute la logique est protégée : la page d'accueil ne renvoie JAMAIS un 500
+    # (API HenrikDev saturée, réseau, base... -> page « réessayer »).
     q = _queue()
-    cfg, client = _ctx()
-    data, _ = pipeline.build_data(client, cfg, queue=q,
-                                  allow_fetch=False, want_analysis=False)
-    # Aucune partie en cache -> page « Charger les parties ».
-    if data is None:
-        return _empty_page(q)
-    # Des parties existent mais le compte ciblé n'y figure pas -> pseudo#tag
-    # probablement faux : page d'explication + réinitialisation (jamais de 500).
-    if not data.get("overview", {}).get("games"):
-        return _account_not_found_page(cfg.riot_id, q)
-    # Parties fraîchement téléchargées à la dernière MAJ (surlignées une fois).
-    data["new_ids"] = list(pipeline.pop_new_ids())
-    data["base"] = request.script_root  # préfixe de montage (ex. /stats)
-    return dashboard.render(_with_background(data))
+    try:
+        cfg, client = _ctx()
+        data, _ = pipeline.build_data(client, cfg, queue=q,
+                                      allow_fetch=False, want_analysis=False)
+        # Aucune partie en cache -> page « Charger les parties ».
+        if data is None:
+            return _empty_page(q)
+        # Des parties existent mais le compte ciblé n'y figure pas -> pseudo#tag
+        # probablement faux : page d'explication + réinitialisation.
+        if not data.get("overview", {}).get("games"):
+            return _account_not_found_page(cfg.riot_id, q)
+        # Parties fraîchement téléchargées à la dernière MAJ (surlignées une fois).
+        data["new_ids"] = list(pipeline.pop_new_ids())
+        data["base"] = request.script_root  # préfixe de montage (ex. /stats)
+        return dashboard.render(_with_background(data))
+    except Exception as e:  # noqa: BLE001 — robustesse : jamais de 500 sur l'accueil
+        return _api_unavailable_page(str(e), q)
 
 
 @app.get("/user-bg")
