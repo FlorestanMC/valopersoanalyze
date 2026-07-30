@@ -8,7 +8,7 @@ import os
 from datetime import datetime
 
 from .aggregate import aggregate
-from . import first_contact, advanced, coach, ranks, storage, paths
+from . import first_contact, advanced, coach, ranks, storage, paths, splits
 
 # Ancien cache fichiers (conservé pour la migration one-shot vers la base).
 CACHE_DIR = os.path.join(paths.CACHE_DIR, "matches")
@@ -293,6 +293,7 @@ def build_data(client, cfg, queue=None, allow_fetch=True, want_analysis=True,
         "fc": fc,
         "kast": ka,
         "weapons": wp,
+        "splits": splits.compute(matches, puuid, queue),
         "agent_img": imgs,
         "analysis": analysis,
     }

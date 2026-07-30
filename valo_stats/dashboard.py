@@ -221,6 +221,61 @@ def _queue_switch(active, base=""):
     return f'<div class="qswitch">{item("competitive")}{item("premier")}</div>'
 
 
+# (label, clé, plus_grand_est_meilleur, suffixe)
+_SPLIT_ROWS = [
+    ("Rounds", "rounds", None, ""),
+    ("ADR", "adr", True, ""),
+    ("KAST", "kast", True, " %"),
+    ("HS %", "hs_pct", True, " %"),
+    ("K/D", "kd", True, ""),
+    ("First Kills", "fk", True, ""),
+    ("First Deaths", "fd", False, ""),
+    ("FCS", "fcs", True, " %"),
+    ("Multi-kills 2k+", "mk", True, ""),
+    ("Clutch (gagnés/tentés)", "clutch", True, ""),
+]
+
+
+def _split_table(b1, b2, l1, l2):
+    b1 = b1 or {}
+    b2 = b2 or {}
+    rows = []
+    for label, key, hb, suf in _SPLIT_ROWS:
+        if key == "clutch":
+            v1, v2 = b1.get("clutch"), b2.get("clutch")  # % pour la comparaison
+            d1 = f'{b1.get("cwon", 0)}/{b1.get("catt", 0)}' if b1.get("catt") else "—"
+            d2 = f'{b2.get("cwon", 0)}/{b2.get("catt", 0)}' if b2.get("catt") else "—"
+        else:
+            v1, v2 = b1.get(key), b2.get(key)
+            d1 = f'{v1}{suf}' if v1 is not None else "—"
+            d2 = f'{v2}{suf}' if v2 is not None else "—"
+        c1 = c2 = ""
+        if hb is not None and isinstance(v1, (int, float)) and isinstance(v2, (int, float)) and v1 != v2:
+            if (v1 > v2) == hb:
+                c1 = ' class="sp-best"'
+            else:
+                c2 = ' class="sp-best"'
+        rows.append(f'<tr><td class="sp-l">{_esc(label)}</td>'
+                    f'<td{c1}>{_esc(d1)}</td><td{c2}>{_esc(d2)}</td></tr>')
+    return (f'<table class="sp-table"><thead><tr><th></th>'
+            f'<th>{_esc(l1)}</th><th>{_esc(l2)}</th></tr></thead>'
+            f'<tbody>{"".join(rows)}</tbody></table>')
+
+
+def _splits_section(sp):
+    sp = sp or {}
+    by_side = sp.get("by_side", {})
+    by_out = sp.get("by_outcome", {})
+    return (
+        '<div class="glass card"><h2>Par side · Attaque vs Défense</h2>'
+        + _split_table(by_side.get("attack"), by_side.get("defense"), "Attaque", "Défense")
+        + '</div>'
+        '<div class="glass card"><h2>Par issue de round · Gagnés vs Perdus</h2>'
+        + _split_table(by_out.get("win"), by_out.get("loss"), "Rounds gagnés", "Rounds perdus")
+        + '</div>'
+    )
+
+
 # --- rendu principal --------------------------------------------------------
 def render(data: dict) -> str:
     p = data["player"]
@@ -441,6 +496,7 @@ def render(data: dict) -> str:
         rwr=(f"{rwr} %" if rwr is not None else "n/d"), round_split=round_split,
         rw=rw, rl=rl, kpis=kpis, map_bars=map_bars, matches=matches_html,
         calendar=_activity_calendar(ov.get("days", {})),
+        splits=_splits_section(data.get("splits")),
         agents=agents_html, weapons=weapons_html, precision=precision_html,
         fk=fk, fd=fd, donut=donut, fcs_gauge=fcs_gauge, fc_bars=fc_bars_html,
         fc_weapons=fc_weapons_html,
@@ -639,6 +695,17 @@ body{position:relative;overflow-x:hidden;background:transparent}
  box-shadow:0 0 7px rgba(255,70,85,.85)}
 .tm-dot{position:absolute;top:9px;right:9px;width:9px;height:9px;border-radius:50%;z-index:3;
  background:var(--red);box-shadow:0 0 7px rgba(255,70,85,.9),0 0 0 3px rgba(255,70,85,.18)}
+
+/* tableaux Splits (par side / par issue) */
+.sp-table{width:100%;border-collapse:collapse}
+.sp-table th{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.1em;
+ font-weight:800;text-align:right;padding:9px 10px;border-bottom:1px solid var(--brd)}
+.sp-table th:first-child{text-align:left}
+.sp-table td{padding:10px;text-align:right;font-size:15px;font-weight:800;
+ font-variant-numeric:tabular-nums;border-bottom:1px solid rgba(255,255,255,.05)}
+.sp-table tr:last-child td{border-bottom:0}
+.sp-table td.sp-l{text-align:left;color:var(--muted);font-size:13px;font-weight:700}
+.sp-table td.sp-best{color:var(--mint)}
 
 /* agents grid */
 .agrid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
@@ -1560,6 +1627,7 @@ _PAGE = """<!doctype html>
    <button class="tab" data-tab="agents">Agents</button>
    <button class="tab" data-tab="weapons">Armes</button>
    <button class="tab" data-tab="fc">First Contact</button>
+   <button class="tab" data-tab="splits">Splits</button>
    <button class="tab" data-tab="team"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 3v5c0 4.2-3 7.2-7 8.5C8 18.2 5 15.2 5 11V6z"/><circle cx="12" cy="10.5" r="2"/><path d="M8.5 15.5c.7-1.6 2-2.5 3.5-2.5s2.8.9 3.5 2.5"/></svg>Team</button>
    <button class="tab" data-tab="vct"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10v3a5 5 0 0 1-10 0z"/><path d="M7 5H4v1a3 3 0 0 0 3 3"/><path d="M17 5h3v1a3 3 0 0 1-3 3"/><path d="M12 12v3"/><path d="M8.5 20h7"/><path d="M10 17h4l.5 3h-5z"/></svg>Carrière</button>
  </nav>
@@ -1617,6 +1685,15 @@ _PAGE = """<!doctype html>
        <p class="muted mini">Barre : part des duels gagnés (vert) vs perdus (rouge).
          FK = kills d'ouverture avec cette arme · FD = morts d'ouverture face à elle.</p></div>
    </div>
+ </section>
+
+ <section id="panel-splits" class="panel">
+   <p class="muted mini" style="margin:0 0 14px">Décomposition round par round. <b>Attaque/Défense</b>
+     déduit des plants ; <b>issue</b> selon l'équipe gagnante du round. La valeur la plus favorable
+     de chaque ligne est <span style="color:var(--mint);font-weight:800">surlignée</span>.</p>
+   <div class="cols">{splits}</div>
+   <p class="muted mini" style="margin:14px 0 0">HS% par arme et stats d'utilitaires ne sont pas
+     fournis par round par l'API HenrikDev — non affichés.</p>
  </section>
 
  <section id="panel-team" class="panel">
