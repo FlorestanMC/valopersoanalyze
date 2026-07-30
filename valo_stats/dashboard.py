@@ -1750,7 +1750,7 @@ _JS = """
  }
  function render(d){
    if(!d||!d.sample||!d.sample.matches){
-     root.innerHTML='<div class="glass card section"><h2>Stats collectives</h2><p class="muted">Pas assez de matchs joués en équipe (≥3 membres dans la même partie). Jouez en groupe puis cliquez « Mettre à jour » dans l\'onglet Team.</p></div>'; return; }
+     root.innerHTML='<div class="glass card section"><h2>Stats collectives</h2><p class="muted">Pas assez de matchs joués en équipe (≥3 membres dans la même partie). Jouez en groupe puis cliquez « Mettre à jour » dans l’onglet Team.</p></div>'; return; }
    var s=d.sample, p=d.plant;
    var h='<div class="glass card section"><h2>Stats collectives · '+s.matches+' matchs (≥'+s.min_members+' ensemble) · '+s.rounds+' rounds · moy '+s.members_avg+' membres</h2>'
      +'<div class="coll-tiles">'
@@ -1766,7 +1766,7 @@ _JS = """
      +'<div class="glass card"><h2>Tempo → win rate</h2><p class="muted mini" style="margin:0 0 10px">Temps avant le 1er kill du round.</p>'+wrbar(d.tempo)+'</div></div>';
    h+='<div class="glass card section"><h2>Différentiel économique → win rate</h2><p class="muted mini" style="margin:0 0 10px">Valeur de loadout équipe vs adversaires, par round.</p>'+wrbar(d.economy)+'</div>';
    if(d.heatmaps&&d.heatmaps.length){
-     h+='<div class="glass card section"><h2>Zones d\'action par carte</h2><p class="muted mini" style="margin:0 0 12px"><b style="color:var(--mint)">●</b> kills · <b style="color:var(--red)">●</b> morts. Une concentration = zone ou exécution redondante.</p><div class="hm-grid">'
+     h+='<div class="glass card section"><h2>Zones d’action par carte</h2><p class="muted mini" style="margin:0 0 12px"><b style="color:var(--mint)">●</b> kills · <b style="color:var(--red)">●</b> morts. Une concentration = zone ou exécution redondante.</p><div class="hm-grid">'
        +d.heatmaps.map(function(m){
          var dots=m.points.map(function(pt){return '<span class="hm-dot '+(pt.t==='k'?'k':'d')+'" style="left:'+(pt.x*100).toFixed(2)+'%;top:'+(pt.y*100).toFixed(2)+'%"></span>';}).join('');
          return '<div class="hm-card"><div class="hm-title">'+esc(m.map)+' <span class="muted">'+m.kills+' K · '+m.deaths+' M</span></div><div class="hm"><img src="'+esc(m.image)+'" alt="" loading="lazy">'+dots+'</div></div>';
