@@ -118,6 +118,37 @@ document.getElementById('load').addEventListener('click',function(){{
 </script></body>"""
 
 
+def _account_not_found_page(riot_id, queue):
+    """Compte ciblé absent des parties récupérées -> pseudo#tag probablement faux."""
+    base = request.script_root
+    rid = (riot_id or "?").replace("<", "&lt;").replace(">", "&gt;")
+    return f"""<!doctype html><meta charset="utf-8">
+<title>Valo Stats</title>
+<body style="font-family:-apple-system,Inter,Segoe UI,sans-serif;background:#07060f;
+ color:#F2F0EA;min-height:100vh;margin:0;display:grid;place-items:center;text-align:center">
+<div style="max-width:500px;padding:30px">
+  <div style="font-weight:900;letter-spacing:.2em;color:#FF4655;font-size:12px">◆ VALO STATS</div>
+  <h2 style="font-size:26px;margin:12px 0">Compte introuvable dans les parties</h2>
+  <p style="color:#98a2b3;line-height:1.55">Le compte <b style="color:#F2F0EA">{rid}</b>
+   n'apparaît dans aucune partie récupérée. Le <b>pseudo#tag</b> est probablement
+   incorrect (faute de frappe, ex. <i>Crazy#prx</i> au lieu de <i>Crazy9#PRX</i>).</p>
+  <div style="display:flex;gap:10px;justify-content:center;margin-top:22px">
+    <button id="reset" style="font:inherit;font-weight:800;cursor:pointer;padding:12px 20px;
+     border-radius:12px;border:0;color:#fff;background:linear-gradient(135deg,#FF4655,#ff2d8e)">
+     ↺ Revenir à mon compte</button>
+  </div>
+  <p style="color:#6b7280;font-size:13px;margin-top:18px">Cela remet le compte défini dans la
+   config du serveur. Tu peux ensuite changer de compte ciblé via ⚙ Paramètres.</p>
+</div>
+<script>
+document.getElementById('reset').addEventListener('click',function(){{
+  var b=this;b.disabled=true;b.textContent='⏳...';
+  fetch('{base}/api/target/reset',{{method:'POST'}}).then(function(){{location.href='{base}/?queue={queue}'}})
+   .catch(function(){{b.textContent='⚠ Erreur';b.disabled=false;}});
+}});
+</script></body>"""
+
+
 def _with_background(data):
     s = settings.load()
     bp = settings.bg_path()
@@ -133,10 +164,13 @@ def index():
     cfg, client = _ctx()
     data, _ = pipeline.build_data(client, cfg, queue=q,
                                   allow_fetch=False, want_analysis=False)
-    # Pas de données exploitables (cache vide, ou joueur absent des parties en
-    # cache) -> page d'accueil « Charger les parties » plutôt qu'un 500.
-    if data is None or not data.get("overview", {}).get("games"):
+    # Aucune partie en cache -> page « Charger les parties ».
+    if data is None:
         return _empty_page(q)
+    # Des parties existent mais le compte ciblé n'y figure pas -> pseudo#tag
+    # probablement faux : page d'explication + réinitialisation (jamais de 500).
+    if not data.get("overview", {}).get("games"):
+        return _account_not_found_page(cfg.riot_id, q)
     # Parties fraîchement téléchargées à la dernière MAJ (surlignées une fois).
     data["new_ids"] = list(pipeline.pop_new_ids())
     data["base"] = request.script_root  # préfixe de montage (ex. /stats)
@@ -347,6 +381,15 @@ def set_target():
     if region and region not in REGIONS:
         return jsonify(error="Région invalide"), 400
     settings.set_target(rid, region or None)
+    _invalidate_updates()
+    return jsonify(ok=True)
+
+
+@app.post("/api/target/reset")
+def reset_target():
+    """Réinitialise le compte ciblé : retour au RIOT_ID de la config serveur."""
+    settings.clear_target()
+    _invalidate_updates()
     return jsonify(ok=True)
 
 
