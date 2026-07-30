@@ -246,7 +246,7 @@ def player_summary(client, game_name, tag_line, queue="competitive",
 
 # --- build ------------------------------------------------------------------
 def build_data(client, cfg, queue=None, allow_fetch=True, want_analysis=True,
-               log=lambda *_: None):
+               map_filter=None, log=lambda *_: None):
     """Construit le dict complet consommé par le dashboard, + un résumé de fetch."""
     queue = queue or cfg.queue
     ids, act_short = act_match_ids(client, cfg, queue)
@@ -261,6 +261,19 @@ def build_data(client, cfg, queue=None, allow_fetch=True, want_analysis=True,
         return None, {"fetched": fetched, "missing": missing, "total": 0, "act": act_short}
 
     puuid = _find_me(matches, cfg.game_name, cfg.tag_line)
+
+    # Cartes disponibles + détail par carte (calculés sur TOUTES les parties,
+    # avant le filtre, pour l'onglet Cartes et le sélecteur).
+    maps_available = sorted({m.get("metadata", {}).get("map", "?") for m in matches})
+    by_map = splits.by_map(matches, puuid)
+
+    # Filtre carte : restreint toutes les autres stats à la carte choisie.
+    map_filter = map_filter or "all"
+    if map_filter != "all":
+        filtered = [m for m in matches if m.get("metadata", {}).get("map") == map_filter]
+        if filtered:
+            matches = filtered
+
     overview = aggregate(matches, puuid, queue)
     fc = first_contact.compute(matches, puuid)
     ka = advanced.kast(matches, puuid)
@@ -294,6 +307,9 @@ def build_data(client, cfg, queue=None, allow_fetch=True, want_analysis=True,
         "kast": ka,
         "weapons": wp,
         "splits": splits.compute(matches, puuid, queue),
+        "by_map": by_map,
+        "maps_available": maps_available,
+        "map_filter": map_filter,
         "agent_img": imgs,
         "analysis": analysis,
     }

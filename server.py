@@ -187,9 +187,10 @@ def index():
     # Toute la logique est protégée : la page d'accueil ne renvoie JAMAIS un 500
     # (API HenrikDev saturée, réseau, base... -> page « réessayer »).
     q = _queue()
+    mp = (request.args.get("map") or "all").strip() or "all"
     try:
         cfg, client = _ctx()
-        data, _ = pipeline.build_data(client, cfg, queue=q,
+        data, _ = pipeline.build_data(client, cfg, queue=q, map_filter=mp,
                                       allow_fetch=False, want_analysis=False)
         # Aucune partie en cache -> page « Charger les parties ».
         if data is None:

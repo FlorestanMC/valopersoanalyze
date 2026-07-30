@@ -187,3 +187,63 @@ def compute(matches, puuid, queue="competitive"):
         "by_outcome": {k: _finalize(v) for k, v in outc.items()},
         "cross": {k: _finalize(v) for k, v in cross.items()},
     }
+
+
+def by_map(matches, puuid):
+    """Résumé par carte : parties, WR, round WR, K/D, ADR, KAST%, HS%."""
+    agg = {}
+    for match in matches:
+        team = _my_team(match, puuid)
+        if not team:
+            continue
+        mp = match.get("metadata", {}).get("map", "?")
+        a = agg.setdefault(mp, {"games": 0, "wins": 0, "kills": 0, "deaths": 0,
+                                "rounds": 0, "rw": 0, "dmg": 0, "kast": 0,
+                                "hs": 0, "bs": 0, "ls": 0})
+        teams = match.get("teams", {})
+        won = bool((teams.get(team.lower()) or {}).get("has_won"))
+        a["games"] += 1
+        a["wins"] += int(won)
+        me = next((p for p in match.get("players", {}).get("all_players", [])
+                   if p.get("puuid") == puuid), {})
+        st = me.get("stats", {})
+        a["kills"] += st.get("kills", 0)
+        a["deaths"] += st.get("deaths", 0)
+        a["hs"] += st.get("headshots", 0)
+        a["bs"] += st.get("bodyshots", 0)
+        a["ls"] += st.get("legshots", 0)
+        rounds = match.get("rounds") or []
+        kbr = _kills_by_round(match)
+        for i, rd in enumerate(rounds):
+            a["rounds"] += 1
+            if rd.get("winning_team") == team:
+                a["rw"] += 1
+            a["dmg"] += _ps(rd, puuid).get("damage") or 0
+            evs = kbr.get(i, [])
+            has_k = any(e.get("killer_puuid") == puuid for e in evs)
+            death = next((e for e in evs if e.get("victim_puuid") == puuid), None)
+            has_a = any(any((x or {}).get("assistant_puuid") == puuid for x in (e.get("assistants") or []))
+                        for e in evs)
+            traded = False
+            if death is not None:
+                killer = death.get("killer_puuid")
+                td = death.get("kill_time_in_round", 0)
+                traded = any(e.get("victim_puuid") == killer and e.get("killer_team") == team
+                             and 0 <= e.get("kill_time_in_round", 0) - td <= TRADE_WINDOW_MS
+                             for e in evs)
+            if has_k or has_a or (death is None) or traded:
+                a["kast"] += 1
+    out = []
+    for mp, a in agg.items():
+        g, r = a["games"], a["rounds"]
+        shots = a["hs"] + a["bs"] + a["ls"]
+        out.append({
+            "map": mp, "games": g, "wins": a["wins"], "losses": g - a["wins"],
+            "win_rate": round(a["wins"] / g * 100, 1) if g else None,
+            "round_wr": round(a["rw"] / r * 100, 1) if r else None,
+            "kd": round(a["kills"] / max(a["deaths"], 1), 2),
+            "adr": round(a["dmg"] / r) if r else None,
+            "kast": round(a["kast"] / r * 100, 1) if r else None,
+            "hs_pct": round(a["hs"] / shots * 100, 1) if shots else None,
+        })
+    return sorted(out, key=lambda m: -m["games"])

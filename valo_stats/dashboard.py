@@ -214,10 +214,12 @@ def _chip(name, img, size=34):
     return f'<span class="chip chip-ph" style="width:{size}px;height:{size}px">{initial}</span>'
 
 
-def _queue_switch(active, base=""):
+def _queue_switch(active, base="", map_filter="all"):
+    mq = f"&map={_esc(map_filter)}" if map_filter and map_filter != "all" else ""
+
     def item(key):
         cls = "qbtn active" if key == active else "qbtn"
-        return f'<a class="{cls}" href="{base}/?queue={key}">{QUEUE_LABEL[key]}</a>'
+        return f'<a class="{cls}" href="{base}/?queue={key}{mq}">{QUEUE_LABEL[key]}</a>'
     return f'<div class="qswitch">{item("competitive")}{item("premier")}</div>'
 
 
@@ -309,6 +311,45 @@ def _splits_section(sp):
           'G = round gagné · P = round perdu. Meilleure valeur de chaque ligne surlignée.</p></div>'
     )
     return f'<div class="cols">{two}</div>{matrix}'
+
+
+def _pctm(v):
+    return f"{v} %" if v is not None else "—"
+
+
+def _map_selector(maps, current):
+    opts = ['<option value="all"' + (" selected" if current == "all" else "") + ">Toutes les cartes</option>"]
+    for m in (maps or []):
+        sel = " selected" if m == current else ""
+        opts.append(f'<option value="{_esc(m)}"{sel}>{_esc(m)}</option>')
+    return ('<select class="mapsel" aria-label="Filtrer par carte" '
+            "onchange=\"location.href=BASE+'/?queue='+QUEUE+'&map='+encodeURIComponent(this.value)\">"
+            + "".join(opts) + "</select>")
+
+
+def _map_table(by_map, base, queue, current):
+    rows = by_map or []
+    if not rows:
+        return '<p class="muted">Aucune donnée par carte.</p>'
+    trs = []
+    for m in rows:
+        wr = m["win_rate"]
+        wrc = _accent(wr) if wr is not None else MUTED
+        active = ' class="mp-active"' if m["map"] == current else ""
+        link = f'{base}/?queue={queue}&map={_esc(m["map"])}'
+        trs.append(
+            f"<tr{active}><td class=\"mp-name\"><a href=\"{link}\">{_esc(m['map'])}</a></td>"
+            f'<td>{m["games"]}</td>'
+            f'<td><b style="color:{wrc}">{_pctm(wr)}</b> '
+            f'<span class="mp-wl">{m["wins"]}V {m["losses"]}D</span></td>'
+            f'<td>{_pctm(m["round_wr"])}</td><td>{m["kd"]}</td>'
+            f'<td>{m["adr"] if m["adr"] is not None else "—"}</td>'
+            f'<td>{_pctm(m["kast"])}</td><td>{_pctm(m["hs_pct"])}</td></tr>'
+        )
+    head = ('<tr><th>Carte</th><th>Parties</th><th>Win rate</th><th>Round WR</th>'
+            '<th>K/D</th><th>ADR</th><th>KAST</th><th>HS%</th></tr>')
+    return (f'<div class="mp-scroll"><table class="mp-table"><thead>{head}</thead>'
+            f'<tbody>{"".join(trs)}</tbody></table></div>')
 
 
 # --- rendu principal --------------------------------------------------------
@@ -519,10 +560,13 @@ def render(data: dict) -> str:
         return v if v is not None else "n/d"
 
     base = data.get("base", "")
+    map_filter = data.get("map_filter", "all")
     return _PAGE.format(
         css=_CSS, js=_JS, name=name, rank=rank, rank_pill=rank_pill, level=level, act=act, gen=gen,
         base=base,
-        queue=queue, qswitch=_queue_switch(queue, base), bg_layer=bg_layer,
+        map_selector=_map_selector(data.get("maps_available"), map_filter),
+        map_table=_map_table(data.get("by_map"), base, queue, map_filter),
+        queue=queue, qswitch=_queue_switch(queue, base, map_filter), bg_layer=bg_layer,
         userbg=userbg, body_class=body_class, dim=bg_dim,
         region_options=region_options,
         mint=MINT, red=RED,
@@ -745,6 +789,24 @@ body{position:relative;overflow-x:hidden;background:transparent}
 .sp-matrix{min-width:520px}
 .sp-matrix th.sp-g{color:#7CF6C6}.sp-matrix th.sp-p{color:#FF8A95}
 .sp-matrix td{font-size:14px;padding:9px 10px}
+
+/* sélecteur de carte + tableau par carte */
+.mapsel{font:inherit;font-weight:800;font-size:13px;color:var(--ink);cursor:pointer;padding:9px 12px;
+ border-radius:12px;border:1px solid var(--brd);background:var(--glass);max-width:180px}
+.mapsel option{background:#12121f;color:var(--ink)}
+.mp-scroll{overflow-x:auto}
+.mp-table{width:100%;border-collapse:collapse;min-width:640px}
+.mp-table th{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.09em;font-weight:800;
+ text-align:right;padding:10px;border-bottom:1px solid var(--brd)}
+.mp-table th:first-child{text-align:left}
+.mp-table td{padding:11px 10px;text-align:right;font-size:15px;font-weight:800;
+ font-variant-numeric:tabular-nums;border-bottom:1px solid rgba(255,255,255,.05)}
+.mp-table td.mp-name{text-align:left;font-size:15px}
+.mp-table td.mp-name a{color:var(--ink);text-decoration:none}
+.mp-table td.mp-name a:hover{color:var(--cyan)}
+.mp-table tr.mp-active{background:linear-gradient(90deg,rgba(34,211,238,.12),transparent 60%)}
+.mp-table tr.mp-active td.mp-name a{color:var(--cyan)}
+.mp-wl{font-size:11px;color:var(--muted);font-weight:700}
 
 /* agents grid */
 .agrid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
@@ -1656,6 +1718,7 @@ _PAGE = """<!doctype html>
        <span class="pill">Niveau {level}</span><span class="pill ac">Saison {act}</span></div></div>
    <div class="spacer"></div>
    <div class="controls">{qswitch}
+     {map_selector}
      <button id="settings-btn" class="refresh" type="button" title="Personnaliser le fond">⚙</button>
      <button id="refresh" class="refresh" type="button">↻ Mettre à jour</button>
      <div class="gen">Généré le<br>{gen}</div></div>
@@ -1666,6 +1729,7 @@ _PAGE = """<!doctype html>
    <button class="tab" data-tab="agents">Agents</button>
    <button class="tab" data-tab="weapons">Armes</button>
    <button class="tab" data-tab="fc">First Contact</button>
+   <button class="tab" data-tab="maps">Cartes</button>
    <button class="tab" data-tab="splits">Splits</button>
    <button class="tab" data-tab="team"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 3v5c0 4.2-3 7.2-7 8.5C8 18.2 5 15.2 5 11V6z"/><circle cx="12" cy="10.5" r="2"/><path d="M8.5 15.5c.7-1.6 2-2.5 3.5-2.5s2.8.9 3.5 2.5"/></svg>Team</button>
    <button class="tab" data-tab="vct"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10v3a5 5 0 0 1-10 0z"/><path d="M7 5H4v1a3 3 0 0 0 3 3"/><path d="M17 5h3v1a3 3 0 0 1-3 3"/><path d="M12 12v3"/><path d="M8.5 20h7"/><path d="M10 17h4l.5 3h-5z"/></svg>Carrière</button>
@@ -1723,6 +1787,14 @@ _PAGE = """<!doctype html>
      <div class="glass card"><h2>First Contact par arme</h2>{fc_weapons}
        <p class="muted mini">Barre : part des duels gagnés (vert) vs perdus (rouge).
          FK = kills d'ouverture avec cette arme · FD = morts d'ouverture face à elle.</p></div>
+   </div>
+ </section>
+
+ <section id="panel-maps" class="panel">
+   <div class="glass card"><h2>Statistiques par carte</h2>
+     <p class="muted mini" style="margin:0 0 12px">Clique sur une carte pour filtrer <b>toutes</b> les
+       stats de l'app dessus (ou utilise le sélecteur en haut à droite). Win rate coloré selon le seuil 50%.</p>
+     {map_table}
    </div>
  </section>
 
