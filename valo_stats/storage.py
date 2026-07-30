@@ -118,5 +118,17 @@ def count(ns: str) -> int:
     return int(row[0]) if row else 0
 
 
+def values(ns: str):
+    """Toutes les valeurs JSON d'un namespace (ex. tous les matchs en cache)."""
+    rows = _run(f"SELECT v FROM kv WHERE ns={_PH}", (ns,), fetch="all") or []
+    out = []
+    for (v,) in rows:
+        try:
+            out.append(json.loads(v))
+        except (ValueError, TypeError):
+            continue
+    return out
+
+
 def backend() -> str:
     return "postgres" if _IS_PG else "sqlite"

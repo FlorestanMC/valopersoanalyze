@@ -25,7 +25,7 @@ except ImportError:
 
 from valo_stats.config import load_config
 from valo_stats.riot import HenrikClient, RiotError
-from valo_stats import pipeline, dashboard, settings, team_coach, storage
+from valo_stats import pipeline, dashboard, settings, team_coach, storage, team_stats
 
 # Migration one-shot des anciens caches fichiers vers la base (sans effet si déjà fait).
 try:
@@ -399,6 +399,19 @@ def team_refresh():
     if allow_fetch:
         _invalidate_updates()
     return jsonify(riot_id=p["riot_id"], region=p["region"], summary=summary)
+
+
+@app.get("/api/team/collective")
+def team_collective():
+    """Stats collectives de l'équipe (matchs joués ensemble, ≥3 membres)."""
+    roster = tuple(p["riot_id"] for p in settings.load().get("team", []))
+    if not roster:
+        return jsonify(sample={"matches": 0})
+
+    def produce():
+        return team_stats.collective(list(roster), storage.values("match"), min_members=3)
+
+    return jsonify(_cached_updates(("collective", roster), produce))
 
 
 @app.post("/api/target")

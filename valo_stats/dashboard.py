@@ -815,6 +815,26 @@ body{position:relative;overflow-x:hidden;background:transparent}
 .mp-table tr.mp-active td.mp-name a{color:var(--cyan)}
 .mp-wl{font-size:11px;color:var(--muted);font-weight:700}
 
+/* stats collectives */
+.coll-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.coll-tile{background:rgba(255,255,255,.04);border:1px solid var(--brd);border-radius:14px;padding:14px 16px}
+.coll-tile .l{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:800}
+.coll-tile .v{font-size:26px;font-weight:900;margin-top:6px;letter-spacing:-.02em}
+.coll-tile .s{font-size:11px;color:var(--muted);margin-top:4px}
+.cb-row{display:grid;grid-template-columns:110px 1fr 52px 40px;align-items:center;gap:10px;padding:6px 0}
+.cb-l{font-size:13px;font-weight:700}
+.cb-bar{height:9px;border-radius:5px;background:rgba(255,255,255,.08);overflow:hidden}
+.cb-bar>span{display:block;height:100%;border-radius:5px;transition:width .6s ease}
+.cb-v{font-size:14px;font-weight:800;text-align:right}
+.cb-n{font-size:11px;color:var(--muted);text-align:right}
+.hm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
+.hm-card .hm-title{font-size:13px;font-weight:800;margin-bottom:6px}
+.hm{position:relative;border-radius:12px;overflow:hidden;border:1px solid var(--brd);background:#0a0a12}
+.hm img{display:block;width:100%;height:auto}
+.hm-dot{position:absolute;width:7px;height:7px;border-radius:50%;transform:translate(-50%,-50%);opacity:.72;pointer-events:none}
+.hm-dot.k{background:var(--mint);box-shadow:0 0 4px rgba(55,224,166,.7)}
+.hm-dot.d{background:var(--red);box-shadow:0 0 4px rgba(255,70,85,.7)}
+
 /* agents grid */
 .agrid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
 .acard{position:relative;overflow:hidden;padding:16px;border-radius:18px;min-height:172px;
@@ -1712,6 +1732,57 @@ _JS = """
    tb.addEventListener('click',function(){ if(!opened){opened=true;boot();} });
  }});
 })();
+
+/* ============ Stats collectives (onglet Collectif) ============ */
+(function(){
+ var root=document.getElementById('coll-root'); if(!root) return;
+ var loaded=false;
+ function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+ function pct(v){return v==null?'—':v+' %';}
+ function acc(v,th){th=th||50;return v==null?'var(--muted)':(v>=th?'var(--mint)':'var(--red)');}
+ function tile(l,v,sub){return '<div class="coll-tile"><div class="l">'+l+'</div><div class="v">'+v+'</div><div class="s">'+(sub||'')+'</div></div>';}
+ function wrbar(items){
+   return (items||[]).map(function(x){var w=x.wr==null?0:x.wr;
+     return '<div class="cb-row"><span class="cb-l">'+esc(x.bucket)+'</span>'
+       +'<div class="cb-bar"><span style="width:'+w+'%;background:'+acc(x.wr)+'"></span></div>'
+       +'<span class="cb-v" style="color:'+acc(x.wr)+'">'+pct(x.wr)+'</span>'
+       +'<span class="cb-n">'+x.rounds+' r</span></div>';}).join('');
+ }
+ function render(d){
+   if(!d||!d.sample||!d.sample.matches){
+     root.innerHTML='<div class="glass card section"><h2>Stats collectives</h2><p class="muted">Pas assez de matchs joués en équipe (≥3 membres dans la même partie). Jouez en groupe puis cliquez « Mettre à jour » dans l\'onglet Team.</p></div>'; return; }
+   var s=d.sample, p=d.plant;
+   var h='<div class="glass card section"><h2>Stats collectives · '+s.matches+' matchs (≥'+s.min_members+' ensemble) · '+s.rounds+' rounds · moy '+s.members_avg+' membres</h2>'
+     +'<div class="coll-tiles">'
+     +tile('Trade efficiency', pct(d.trade_eff), d.trade_counts.traded+'/'+d.trade_counts.deaths+' morts tradées')
+     +tile('Plant %', pct(p.plant_pct), p.planted+'/'+p.atk_rounds+' rounds attaque')
+     +tile('Post-plant win', pct(p.postplant_win), p.postplant_wins+'/'+p.planted+' plantés')
+     +tile('Retake %', pct(p.retake_pct), p.retake_wins+'/'+p.enemy_planted+' sites à retake')
+     +'</div></div>';
+   var mr=(d.wr_by_map||[]).map(function(m){
+     return '<tr><td class="sp-l">'+esc(m.map)+'</td><td>'+m.matches+' <span class="mp-wl">'+m.wins+'V '+m.losses+'D</span></td>'
+       +'<td style="color:'+acc(m.round_wr)+'">'+pct(m.round_wr)+'</td><td>'+pct(m.atk_wr)+'</td><td>'+pct(m.def_wr)+'</td></tr>';}).join('');
+   h+='<div class="cols"><div class="glass card"><h2>Win rate par carte</h2><div class="sp-scroll"><table class="sp-table"><thead><tr><th></th><th>Parties</th><th>Round WR</th><th>Atk</th><th>Déf</th></tr></thead><tbody>'+mr+'</tbody></table></div></div>'
+     +'<div class="glass card"><h2>Tempo → win rate</h2><p class="muted mini" style="margin:0 0 10px">Temps avant le 1er kill du round.</p>'+wrbar(d.tempo)+'</div></div>';
+   h+='<div class="glass card section"><h2>Différentiel économique → win rate</h2><p class="muted mini" style="margin:0 0 10px">Valeur de loadout équipe vs adversaires, par round.</p>'+wrbar(d.economy)+'</div>';
+   if(d.heatmaps&&d.heatmaps.length){
+     h+='<div class="glass card section"><h2>Zones d\'action par carte</h2><p class="muted mini" style="margin:0 0 12px"><b style="color:var(--mint)">●</b> kills · <b style="color:var(--red)">●</b> morts. Une concentration = zone ou exécution redondante.</p><div class="hm-grid">'
+       +d.heatmaps.map(function(m){
+         var dots=m.points.map(function(pt){return '<span class="hm-dot '+(pt.t==='k'?'k':'d')+'" style="left:'+(pt.x*100).toFixed(2)+'%;top:'+(pt.y*100).toFixed(2)+'%"></span>';}).join('');
+         return '<div class="hm-card"><div class="hm-title">'+esc(m.map)+' <span class="muted">'+m.kills+' K · '+m.deaths+' M</span></div><div class="hm"><img src="'+esc(m.image)+'" alt="" loading="lazy">'+dots+'</div></div>';
+       }).join('')+'</div></div>';
+   }
+   root.innerHTML=h;
+ }
+ function boot(){
+   root.innerHTML='<div class="glass card section"><p class="muted">Calcul des stats collectives…</p></div>';
+   fetch(BASE+'/api/team/collective').then(function(r){return r.json();}).then(render)
+     .catch(function(){root.innerHTML='<div class="glass card section"><p class="muted">⚠ Erreur de chargement.</p></div>';});
+ }
+ document.querySelectorAll('.tab').forEach(function(tb){ if(tb.dataset.tab==='collective'){
+   tb.addEventListener('click',function(){ if(!loaded){loaded=true;boot();} });
+ }});
+})();
 """
 
 _PAGE = """<!doctype html>
@@ -1744,6 +1815,7 @@ _PAGE = """<!doctype html>
    <button class="tab" data-tab="maps">Cartes</button>
    <button class="tab" data-tab="splits">Splits</button>
    <button class="tab" data-tab="team"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 3v5c0 4.2-3 7.2-7 8.5C8 18.2 5 15.2 5 11V6z"/><circle cx="12" cy="10.5" r="2"/><path d="M8.5 15.5c.7-1.6 2-2.5 3.5-2.5s2.8.9 3.5 2.5"/></svg>Team</button>
+   <button class="tab" data-tab="collective">Collectif</button>
    <button class="tab" data-tab="vct"><svg class="tab-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10v3a5 5 0 0 1-10 0z"/><path d="M7 5H4v1a3 3 0 0 0 3 3"/><path d="M17 5h3v1a3 3 0 0 1-3 3"/><path d="M12 12v3"/><path d="M8.5 20h7"/><path d="M10 17h4l.5 3h-5z"/></svg>Carrière</button>
  </nav>
 
@@ -1821,6 +1893,10 @@ _PAGE = """<!doctype html>
 
  <section id="panel-team" class="panel">
    <div class="glass card section"><div id="team-root"></div></div>
+ </section>
+
+ <section id="panel-collective" class="panel">
+   <div id="coll-root"><p class="muted">Chargement…</p></div>
  </section>
 
  <section id="panel-vct" class="panel">
