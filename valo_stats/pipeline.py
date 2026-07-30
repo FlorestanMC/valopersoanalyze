@@ -149,35 +149,42 @@ def pop_new_ids():
 
 
 # --- total de parties de l'act via MMR (sans télécharger les matchs) --------
-def act_totals(client, game_name, tag_line, act_short):
-    """(nb_parties, victoires) de l'act `act_short` via l'endpoint MMR, sinon None.
+def mmr_info(client, game_name, tag_line, act_short):
+    """Infos MMR en un seul appel léger : {act_games, act_wins, rr, elo, rr_change}.
 
-    N'effectue qu'un appel réseau léger : aucun détail de match n'est téléchargé.
+    - RR = current_data.ranking_in_tier (points dans le palier).
+    - act_games/wins = by_season de l'act courant. Aucun match téléchargé.
     """
-    if not act_short:
-        return None, None
     try:
-        by_season = (client.get_mmr(game_name, tag_line).get("by_season") or {})
+        mmr = client.get_mmr(game_name, tag_line)
     except Exception:  # noqa: BLE001 — MMR indispo : on dégrade proprement
-        return None, None
-    target = act_short.lower()
-    for key, val in by_season.items():
-        if key.lower() == target and isinstance(val, dict) and not val.get("error"):
-            return val.get("number_of_games"), val.get("wins")
-    return None, None
+        return {}
+    out = {}
+    cd = mmr.get("current_data") or {}
+    if cd:
+        out["rr"] = cd.get("ranking_in_tier")
+        out["elo"] = cd.get("elo")
+        out["rr_change"] = cd.get("mmr_change_to_last_game")
+    if act_short:
+        target = act_short.lower()
+        for key, val in (mmr.get("by_season") or {}).items():
+            if key.lower() == target and isinstance(val, dict) and not val.get("error"):
+                out["act_games"] = val.get("number_of_games")
+                out["act_wins"] = val.get("wins")
+                break
+    return out
 
 
-def _read_act_cache(region, riot_id, act_short):
-    """Totaux d'act en cache, seulement s'ils concernent l'act courant."""
+def _read_mmr_cache(region, riot_id, act_short):
+    """Infos MMR en cache, seulement si elles concernent l'act courant."""
     d = storage.get("act", f"{region}_{riot_id}")
     if isinstance(d, dict) and d.get("act") == act_short:
-        return d.get("games"), d.get("wins")
-    return None, None
+        return d.get("info") or {}
+    return {}
 
 
-def _write_act_cache(region, riot_id, act_short, games, wins):
-    storage.set("act", f"{region}_{riot_id}",
-                {"act": act_short, "games": games, "wins": wins})
+def _write_mmr_cache(region, riot_id, act_short, info):
+    storage.set("act", f"{region}_{riot_id}", {"act": act_short, "info": info})
 
 
 # --- résumé compact d'un joueur (onglet Team) -------------------------------
@@ -214,21 +221,22 @@ def player_summary(client, game_name, tag_line, queue="competitive",
     top_agent = agents[0][0] if agents else None
     agent_bg = imgs.get(top_agent, {}).get("portrait") if top_agent else None
 
-    # Totaux de l'act via MMR (réseau) puis mis en cache, sinon relecture du cache
+    # MMR (totaux d'act + RR/elo/variation) via un appel réseau, puis mis en cache
     # pour rester dispo lors des chargements cache-only (ouverture d'onglet).
     riot_id = f"{game_name}#{tag_line}"
-    act_games = act_wins = None
+    info = {}
     if allow_fetch:
-        act_games, act_wins = act_totals(client, game_name, tag_line, act_short)
-        if act_games is not None:
-            _write_act_cache(client.region, riot_id, act_short, act_games, act_wins)
-    if act_games is None:
-        act_games, act_wins = _read_act_cache(client.region, riot_id, act_short)
+        info = mmr_info(client, game_name, tag_line, act_short)
+        if info:
+            _write_mmr_cache(client.region, riot_id, act_short, info)
+    if not info:
+        info = _read_mmr_cache(client.region, riot_id, act_short)
 
     rk = ranks.info(meta.get("tier"), meta["rank"])
     return {
         "games": ov.get("games", 0),
-        "act_games": act_games, "act_wins": act_wins,
+        "act_games": info.get("act_games"), "act_wins": info.get("act_wins"),
+        "rr": info.get("rr"), "rr_change": info.get("rr_change"), "elo": info.get("elo"),
         "rank": meta["rank"], "level": meta["level"],
         "rank_icon": rk["icon"], "rank_color": rk["color"],
         "win_rate": ov.get("win_rate"), "wins": ov.get("wins"), "losses": ov.get("losses"),
@@ -284,6 +292,15 @@ def build_data(client, cfg, queue=None, allow_fetch=True, want_analysis=True,
     top_agent = next(iter(overview.get("agents", {})), None)
     agent_bg = imgs.get(top_agent, {}).get("portrait") if top_agent else None
 
+    # RR du profil (MMR) : réseau si autorisé puis cache, sinon relecture du cache.
+    pinfo = {}
+    if allow_fetch:
+        pinfo = mmr_info(client, cfg.game_name, cfg.tag_line, act_short)
+        if pinfo:
+            _write_mmr_cache(cfg.region, cfg.riot_id, act_short, pinfo)
+    if not pinfo:
+        pinfo = _read_mmr_cache(cfg.region, cfg.riot_id, act_short)
+
     analysis = None
     if want_analysis:
         combined = {**overview, "kast": ka["kast"], "first_contact": fc,
@@ -297,7 +314,9 @@ def build_data(client, cfg, queue=None, allow_fetch=True, want_analysis=True,
     rk = ranks.info(meta.get("tier"), meta["rank"])
     data = {
         "player": {"name": cfg.riot_id, "rank": meta["rank"], "level": meta["level"],
-                   "rank_icon": rk["icon"], "rank_color": rk["color"], "agent_bg": agent_bg},
+                   "rank_icon": rk["icon"], "rank_color": rk["color"], "agent_bg": agent_bg,
+                   "rr": pinfo.get("rr"), "rr_change": pinfo.get("rr_change"),
+                   "elo": pinfo.get("elo")},
         "act": act_short,
         "queue": queue,
         "region": cfg.region,

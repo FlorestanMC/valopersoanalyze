@@ -368,8 +368,15 @@ def render(data: dict) -> str:
     rank_icon = p.get("rank_icon")
     rank_color = p.get("rank_color") or "#ffd479"
     _emblem = f'<img class="rk-emblem" src="{_esc(rank_icon)}" alt="">' if rank_icon else ""
+    _rr = p.get("rr")
+    _rr_txt = f' · {_rr} RR' if _rr is not None else ""
+    _chg = p.get("rr_change")
+    _chg_txt = ""
+    if isinstance(_chg, (int, float)) and _chg != 0:
+        _col = MINT if _chg > 0 else RED
+        _chg_txt = f' <span style="color:{_col};font-weight:900">{"+" if _chg > 0 else ""}{_chg}</span>'
     rank_pill = (f'<span class="pill rk" style="border-color:{rank_color}66;color:{rank_color}">'
-                 f'{_emblem}{rank}</span>')
+                 f'{_emblem}{rank}{_rr_txt}{_chg_txt}</span>')
     level = _esc(p.get("level", "—"))
     act = _esc(data.get("act", "—"))
     gen = _esc(data.get("generated", datetime.now().strftime("%Y-%m-%d %H:%M")))
@@ -1625,8 +1632,13 @@ _JS = """
      +'<div class="tm-empty">Aucune donnée en cache — clique « Mettre à jour ».</div></div>'; }
    var rc=d.rank_color||'#ffd479';
    var ric=d.rank_icon?'<img class="tm-rankimg" src="'+esc(d.rank_icon)+'" alt="">':'';
+   var rrline;
+   if(d.rr!=null){
+     var chg=(d.rr_change!=null&&d.rr_change!==0)?' <b style="color:'+(d.rr_change>0?'#37E0A6':'#FF4655')+'">'+(d.rr_change>0?'+':'')+d.rr_change+'</b>':'';
+     rrline='<b style="color:var(--ink)">'+esc(d.rr)+' RR</b>'+chg;
+   } else { rrline='Niv '+esc(d.level); }
    head+='<div class="tm-rank">'+ric+'<div class="tm-ranktxt"><span style="color:'+rc+'">'+esc(d.rank)
-     +'</span><br><span style="color:var(--muted)">Niv '+esc(d.level)+'</span></div></div></div>';
+     +'</span><br><span style="color:var(--muted)">'+rrline+'</span></div></div></div>';
    var kpis='<div class="tm-kpis">'
      +kp('WR',(d.win_rate!=null?d.win_rate+'%':'–'))
      +kp('K/D',d.kd!=null?d.kd:'–')
