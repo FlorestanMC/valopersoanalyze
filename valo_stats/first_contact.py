@@ -12,6 +12,8 @@ premier kill, et l'arme qui te tue quand tu prends la première mort.
 """
 from collections import defaultdict
 
+from . import maps
+
 
 def first_bloods(match: dict):
     """Renvoie {round_index: kill_event} : le premier kill de chaque round."""
@@ -33,6 +35,39 @@ def _agent_of(match: dict, puuid: str) -> str:
         if p.get("puuid") == puuid:
             return p.get("character", "?")
     return "?"
+
+
+def heatmap(matches, puuid: str) -> dict:
+    """Positions des duels d'ouverture du joueur : FK (où il prend le 1er kill)
+    et FD (où il subit la 1re mort), taguées par agent et carte, pour un
+    affichage filtrable. Coordonnées normalisées [0,1] via maps.to_image."""
+    points = []
+    agents = set()
+    maps_seen = {}
+    for match in matches:
+        mp = match.get("metadata", {}).get("map", "?")
+        agent = _agent_of(match, puuid)
+        agents.add(agent)
+        mi = maps.info(mp)
+        if mi and mi.get("image"):
+            maps_seen[mp] = mi["image"]
+        for k in first_bloods(match).values():
+            if k.get("killer_puuid") == puuid:
+                loc = next((pl.get("location") for pl in (k.get("player_locations_on_kill") or [])
+                            if pl.get("player_puuid") == puuid), None)
+                pt = maps.to_image(mp, loc.get("x"), loc.get("y")) if loc else None
+                if pt:
+                    points.append({"x": pt[0], "y": pt[1], "t": "fk", "map": mp, "agent": agent})
+            elif k.get("victim_puuid") == puuid:
+                loc = k.get("victim_death_location")
+                pt = maps.to_image(mp, loc.get("x"), loc.get("y")) if loc else None
+                if pt:
+                    points.append({"x": pt[0], "y": pt[1], "t": "fd", "map": mp, "agent": agent})
+    return {
+        "points": points,
+        "agents": sorted(a for a in agents if a and a != "?"),
+        "maps": [{"name": n, "image": img} for n, img in sorted(maps_seen.items())],
+    }
 
 
 def compute(matches, puuid: str) -> dict:

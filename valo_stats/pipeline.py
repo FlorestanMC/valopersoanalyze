@@ -274,6 +274,7 @@ def build_data(client, cfg, queue=None, allow_fetch=True, want_analysis=True,
     # avant le filtre, pour l'onglet Cartes et le sélecteur).
     maps_available = sorted({m.get("metadata", {}).get("map", "?") for m in matches})
     by_map = splits.by_map(matches, puuid)
+    fc_heatmap = first_contact.heatmap(matches, puuid)
 
     # Filtre carte : restreint toutes les autres stats à la carte choisie.
     map_filter = map_filter or "all"
@@ -327,6 +328,7 @@ def build_data(client, cfg, queue=None, allow_fetch=True, want_analysis=True,
         "weapons": wp,
         "splits": splits.compute(matches, puuid, queue),
         "by_map": by_map,
+        "fc_heatmap": fc_heatmap,
         "maps_available": maps_available,
         "map_filter": map_filter,
         "agent_img": imgs,

@@ -5,6 +5,7 @@ aurora animé, verre lumineux, sélecteur de file Ranked ↔ Premier.
 Document autonome (images d'agents/armes chargées depuis valorant-api.com).
 """
 import html
+import json
 import re
 from datetime import datetime, date, timedelta
 
@@ -568,9 +569,10 @@ def render(data: dict) -> str:
 
     base = data.get("base", "")
     map_filter = data.get("map_filter", "all")
+    fc_heatmap = json.dumps(data.get("fc_heatmap") or {}, ensure_ascii=False).replace("</", "<\\/")
     return _PAGE.format(
         css=_CSS, js=_JS, name=name, rank=rank, rank_pill=rank_pill, level=level, act=act, gen=gen,
-        base=base,
+        base=base, fc_heatmap=fc_heatmap,
         map_selector=_map_selector(data.get("maps_available"), map_filter),
         map_table=_map_table(data.get("by_map"), base, queue, map_filter),
         queue=queue, qswitch=_queue_switch(queue, base, map_filter), bg_layer=bg_layer,
@@ -834,6 +836,7 @@ body{position:relative;overflow-x:hidden;background:transparent}
 .hm-dot{position:absolute;width:7px;height:7px;border-radius:50%;transform:translate(-50%,-50%);opacity:.72;pointer-events:none}
 .hm-dot.k{background:var(--mint);box-shadow:0 0 4px rgba(55,224,166,.7)}
 .hm-dot.d{background:var(--red);box-shadow:0 0 4px rgba(255,70,85,.7)}
+.fchm-ctrl{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 
 /* agents grid */
 .agrid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
@@ -1783,6 +1786,32 @@ _JS = """
    tb.addEventListener('click',function(){ if(!loaded){loaded=true;boot();} });
  }});
 })();
+
+/* ============ Heatmap First Contact (filtres carte + agent) ============ */
+(function(){
+ var wrap=document.getElementById('fchm-wrap');
+ if(!wrap||typeof FC_HEATMAP==='undefined') return;
+ var D=FC_HEATMAP||{};
+ if(!D.points||!D.points.length){ wrap.innerHTML='<p class="muted mini">Pas de positions disponibles (clique « Mettre à jour » pour recharger).</p>'; return; }
+ function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+ var mapSel=document.getElementById('fchm-map'), agSel=document.getElementById('fchm-agent'), cnt=document.getElementById('fchm-count');
+ var perMap={}; D.points.forEach(function(p){perMap[p.map]=(perMap[p.map]||0)+1;});
+ var mapsList=(D.maps||[]).filter(function(m){return perMap[m.name];}).sort(function(a,b){return perMap[b.name]-perMap[a.name];});
+ if(!mapsList.length){ wrap.innerHTML='<p class="muted mini">Cartes indisponibles.</p>'; return; }
+ mapSel.innerHTML=mapsList.map(function(m){return '<option value="'+esc(m.name)+'">'+esc(m.name)+' ('+perMap[m.name]+')</option>';}).join('');
+ agSel.innerHTML='<option value="all">Tous les agents</option>'+(D.agents||[]).map(function(a){return '<option value="'+esc(a)+'">'+esc(a)+'</option>';}).join('');
+ function imgFor(name){for(var i=0;i<D.maps.length;i++){if(D.maps[i].name===name)return D.maps[i].image;}return '';}
+ function render(){
+   var mp=mapSel.value, ag=agSel.value;
+   var pts=D.points.filter(function(p){return p.map===mp && (ag==='all'||p.agent===ag);});
+   var fk=0; pts.forEach(function(p){if(p.t==='fk')fk++;});
+   cnt.textContent=pts.length+' duels · '+fk+' FK / '+(pts.length-fk)+' FD';
+   var dots=pts.map(function(p){return '<span class="hm-dot '+(p.t==='fk'?'k':'d')+'" style="left:'+(p.x*100).toFixed(2)+'%;top:'+(p.y*100).toFixed(2)+'%"></span>';}).join('');
+   wrap.innerHTML='<div class="hm"><img src="'+esc(imgFor(mp))+'" alt="" loading="lazy">'+dots+'</div>';
+ }
+ mapSel.onchange=render; agSel.onchange=render;
+ render();
+})();
 """
 
 _PAGE = """<!doctype html>
@@ -1872,6 +1901,16 @@ _PAGE = """<!doctype html>
        <p class="muted mini">Barre : part des duels gagnés (vert) vs perdus (rouge).
          FK = kills d'ouverture avec cette arme · FD = morts d'ouverture face à elle.</p></div>
    </div>
+   <div class="glass card section"><h2>Heatmap des duels d'ouverture</h2>
+     <p class="muted mini" style="margin:0 0 12px"><b style="color:var(--mint)">●</b> premiers kills ·
+       <b style="color:var(--red)">●</b> premières morts. Filtre par carte et par agent.</p>
+     <div class="fchm-ctrl">
+       <select id="fchm-map" class="mapsel"></select>
+       <select id="fchm-agent" class="mapsel"></select>
+       <span id="fchm-count" class="muted mini"></span>
+     </div>
+     <div id="fchm-wrap" style="margin-top:14px;max-width:560px"></div>
+   </div>
  </section>
 
  <section id="panel-maps" class="panel">
@@ -1940,6 +1979,6 @@ _PAGE = """<!doctype html>
   </div>
 </div>
 
-<script>var QUEUE={queue!r};var BASE={base!r};{js}</script>
+<script>var QUEUE={queue!r};var BASE={base!r};var FC_HEATMAP={fc_heatmap};{js}</script>
 </body></html>
 """
